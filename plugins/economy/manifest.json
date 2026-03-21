@@ -1,0 +1,10 @@
+{
+  "name": "Economy System",
+  "id": "economy",
+  "description": "Full economy system with wallet, bank, and commands",
+  "version": "1.0.0",
+  "author": "pqndr",
+  "main": "index.js",
+  "type": "js",
+  "enabled": true
+}

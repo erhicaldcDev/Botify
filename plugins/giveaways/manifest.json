@@ -1,0 +1,8 @@
+{
+    "name":  "Giveaway System",
+    "description":  "Start and manage giveaways with complex requirement checks.",
+    "version":  "1.2.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

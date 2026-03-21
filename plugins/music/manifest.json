@@ -1,0 +1,8 @@
+{
+    "name":  "Music Core",
+    "description":  "High-quality music playback system for voice channels.",
+    "version":  "2.1.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

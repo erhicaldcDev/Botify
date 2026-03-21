@@ -1,0 +1,8 @@
+{
+    "name":  "Premium Fun Pack",
+    "description":  "8ball, memes, jokes, and interactive mini-games.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

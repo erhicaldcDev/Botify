@@ -1,0 +1,8 @@
+{
+    "name":  "Server Stats Pro",
+    "description":  "Automated voice and text counters for server metrics.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

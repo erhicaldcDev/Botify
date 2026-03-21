@@ -1,0 +1,8 @@
+{
+    "name":  "Ticket Support",
+    "description":  "Professional support system using private threads and buttons.",
+    "version":  "1.0.5",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

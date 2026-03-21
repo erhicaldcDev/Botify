@@ -1,0 +1,8 @@
+{
+    "name":  "Starboard Suite",
+    "description":  "Automatically highlights community-favorite messages.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

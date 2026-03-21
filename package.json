@@ -1,0 +1,34 @@
+{
+    "name": "botify",
+    "version": "1.0.0",
+    "description": "Botify - OpenSource Discord Bot Creator",
+    "main": "main.js",
+    "author": "pqndr (https://github.com/erhicaldcDev)",
+    "license": "MIT",
+    "scripts": {
+        "start": "electron .",
+        "dev": "electron . --dev",
+        "build": "electron-builder",
+        "package": "electron-packager . Botify --platform=win32 --arch=x64 --out=dist --overwrite"
+    },
+    "dependencies": {
+        "better-sqlite3": "^9.6.0",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "electron": "^28.3.3",
+        "electron-builder": "^24.13.3",
+        "electron-packager": "^17.1.2"
+    },
+    "build": {
+        "appId": "com.botify.creator",
+        "productName": "Botify",
+        "win": {
+            "target": [
+                "portable",
+                "zip"
+            ]
+        },
+        "forceCodeSigning": false
+    }
+}

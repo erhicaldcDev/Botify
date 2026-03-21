@@ -1,0 +1,8 @@
+{
+    "name":  "AI Chat Bot",
+    "description":  "Integrates GPT and other AI models for natural conversations.",
+    "version":  "0.9.5",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

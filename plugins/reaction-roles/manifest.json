@@ -1,0 +1,8 @@
+{
+    "name":  "Self-Roles Editor",
+    "description":  "Reaction and button based role self-assignment.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

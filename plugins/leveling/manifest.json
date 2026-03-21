@@ -1,0 +1,8 @@
+{
+    "name":  "Leveling Pro",
+    "description":  "Dynamic XP system with role rewards and leaderboard.",
+    "version":  "1.5.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

@@ -1,0 +1,8 @@
+{
+    "name":  "Flash Gear Sync",
+    "description":  "Turbocharges code generation and keeps your IDE in sync with local changes.",
+    "version":  "2.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

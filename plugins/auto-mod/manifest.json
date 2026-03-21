@@ -1,0 +1,8 @@
+{
+    "name":  "Auto-Moderator",
+    "description":  "Automatically filters bad words and prevents spam in your bot.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

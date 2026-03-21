@@ -1,0 +1,8 @@
+{
+    "name":  "Reminders \u0026 Queues",
+    "description":  "Schedule personal and server-wide reminders easily.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}

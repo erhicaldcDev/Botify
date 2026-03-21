@@ -1,0 +1,8 @@
+{
+    "name":  "Audit Logs",
+    "description":  "Detailed logging of messages, roles, and server updates.",
+    "version":  "1.0.0",
+    "author":  "pqndr/erhicaldc",
+    "main":  "index.js",
+    "enabled":  true
+}
