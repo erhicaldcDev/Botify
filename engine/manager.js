@@ -1,5 +1,6 @@
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 
 class EngineManager {
     constructor() {
@@ -39,13 +40,22 @@ class EngineManager {
 
         switch (this.currentEngine) {
             case "node":
+                if (!fs.existsSync(path.join(this.currentPath, "node_modules"))) {
+                    this._log("error", "Dependencies not found! Click 'Generate & Install' to install them first.");
+                    return;
+                }
                 command = "node";
                 args = ["index.js"];
                 break;
             case "python": {
                 const isWin = process.platform === "win32";
                 const venvExt = isWin ? "Scripts" : "bin";
-                command = path.join(this.currentPath, ".venv", venvExt, isWin ? "python.exe" : "python3");
+                const venvPath = path.join(this.currentPath, ".venv");
+                if (!fs.existsSync(venvPath)) {
+                    this._log("error", "Python virtual environment not found! Click 'Generate & Install' to create it first.");
+                    return;
+                }
+                command = path.join(venvPath, venvExt, isWin ? "python.exe" : "python3");
                 args = ["main.py"];
                 break;
             }

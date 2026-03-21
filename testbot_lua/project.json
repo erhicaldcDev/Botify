@@ -1,0 +1,17 @@
+{
+  "id": "testbot_lua",
+  "name": "TestBot Lua",
+  "engine": "lua",
+  "prefix": "!",
+  "commands": [
+    {
+      "name": "ping",
+      "type": "slash",
+      "actions": [
+        { "type": "reply", "content": "pong!" }
+      ]
+    }
+  ],
+  "events": [],
+  "createdAt": "2026-03-21T14:41:00Z"
+}

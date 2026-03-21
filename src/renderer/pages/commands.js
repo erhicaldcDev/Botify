@@ -8,6 +8,10 @@ const LOGIC_BLOCKS = [
   { type: "create_embed", label: "Create Embed", icon: "📋" },
   { type: "if_condition", label: "If Condition", icon: "❓" },
   { type: "set_variable", label: "Variable", icon: "📦" },
+  { type: "mention_user", label: "Mention User", icon: "@" },
+  { type: "mention_role", label: "Mention Role", icon: "🏷️" },
+  { type: "mention_channel", label: "Mention Channel", icon: "#" },
+  { type: "set_status", label: "Set Status", icon: "🎭" },
   { type: "api_request", label: "API Request", icon: "🌐" },
   { type: "db_read", label: "DB Read", icon: "📖" },
   { type: "db_write", label: "DB Write", icon: "✏️" },
@@ -523,6 +527,10 @@ function createDefaultAction(type) {
     create_embed: { type, embed: { title: "Embed", description: "", color: "#7c6aef", fields: [], footer: "" } },
     if_condition: { type, condition: "true", then: [], else: [] },
     set_variable: { type, name: "myVar", value: "" },
+    mention_user: { type, userId: "${interaction.user.id}", saveTo: "mention" },
+    mention_role: { type, roleId: "", saveTo: "mention" },
+    mention_channel: { type, channelId: "${interaction.channel.id}", saveTo: "mention" },
+    set_status: { type, text: "Watching you", statusType: "WATCHING", status: "online" },
     api_request: { type, url: "https://api.example.com", method: "GET" },
     db_read: { type, query: "SELECT * FROM data" },
     db_write: { type, query: "INSERT INTO data (key, value) VALUES (?, ?)", params: [] },
@@ -544,6 +552,32 @@ function getActionFields(action) {
     case "set_variable":
       return `<div class="input-group"><label class="input-label">Variable Name</label><input class="input" data-field="name" value="${action.name || ""}" /></div>
               <div class="input-group"><label class="input-label">Value</label><input class="input" data-field="value" value="${action.value || ""}" /></div>`;
+    case "mention_user":
+      return `<div class="input-group"><label class="input-label">User ID (or use \${...})</label><input class="input" data-field="userId" value="${action.userId || ""}" /></div>
+              <div class="input-group"><label class="input-label">Save To Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "mention"}" /></div>`;
+    case "mention_role":
+      return `<div class="input-group"><label class="input-label">Role ID</label><input class="input" data-field="roleId" value="${action.roleId || ""}" /></div>
+              <div class="input-group"><label class="input-label">Save To Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "mention"}" /></div>`;
+    case "mention_channel":
+      return `<div class="input-group"><label class="input-label">Channel ID</label><input class="input" data-field="channelId" value="${action.channelId || ""}" /></div>
+              <div class="input-group"><label class="input-label">Save To Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "mention"}" /></div>`;
+    case "set_status":
+      return `<div class="input-group"><label class="input-label">Status Text</label><input class="input" data-field="text" value="${action.text || ""}" /></div>
+              <div class="input-group"><label class="input-label">Activity Type</label>
+                <select class="input" data-field="statusType">
+                  <option value="PLAYING" ${action.statusType === "PLAYING" ? "selected" : ""}>Playing</option>
+                  <option value="STREAMING" ${action.statusType === "STREAMING" ? "selected" : ""}>Streaming</option>
+                  <option value="LISTENING" ${action.statusType === "LISTENING" ? "selected" : ""}>Listening</option>
+                  <option value="WATCHING" ${action.statusType === "WATCHING" ? "selected" : ""}>Watching</option>
+                  <option value="COMPETING" ${action.statusType === "COMPETING" ? "selected" : ""}>Competing</option>
+                </select></div>
+              <div class="input-group"><label class="input-label">Status</label>
+                <select class="input" data-field="status">
+                  <option value="online" ${action.status === "online" ? "selected" : ""}>Online</option>
+                  <option value="idle" ${action.status === "idle" ? "selected" : ""}>Idle</option>
+                  <option value="dnd" ${action.status === "dnd" ? "selected" : ""}>DND</option>
+                  <option value="invisible" ${action.status === "invisible" ? "selected" : ""}>Invisible</option>
+                </select></div>`;
     case "api_request":
       return `<div class="input-group"><label class="input-label">URL</label><input class="input" data-field="url" value="${action.url || ""}" /></div>
               <div class="input-group"><label class="input-label">Method</label><select class="input" data-field="method"><option value="GET" ${action.method === "GET" ? "selected" : ""}>GET</option><option value="POST" ${action.method === "POST" ? "selected" : ""}>POST</option></select></div>`;

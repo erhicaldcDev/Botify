@@ -109,10 +109,11 @@ class CodeGenerator {
             slashCommands.push(helpCmd);
         }
 
-        let indexJs = `const { Client, GatewayIntentBits, Collection, REST, Routes, EmbedBuilder } = require("discord.js");
+        let indexJs = `const { Client, GatewayIntentBits, Collection, REST, Routes, EmbedBuilder, ActivityType } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
+const Database = require("better-sqlite3");
 require("dotenv").config();
 
 const client = new Client({
@@ -122,6 +123,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildPresences,
   ],
 });
 
@@ -374,7 +377,7 @@ ${actionCode || '    message.reply("Command executed.");'}
                 switch (action.type) {
                     case "send_message":
                     case "reply":
-                        return `${indent}if (typeof interaction !== "undefined") { await interaction.reply(${this._resolveString(action.content || "Hello!")}); }\n${indent}else if (typeof message !== "undefined") { await message.reply(${this._resolveString(action.content || "Hello!")}); }\n${indent}else if (typeof member !== "undefined" && member.guild.systemChannel) { await member.guild.systemChannel.send(${this._resolveString(action.content || "Hello!")}); }`;
+                        return `${indent}if (typeof interaction !== "undefined") {\n${indent}  if (interaction.replied || interaction.deferred) await interaction.followUp(${this._resolveString(action.content || "Hello!")});\n${indent}  else await interaction.reply(${this._resolveString(action.content || "Hello!")});\n${indent}} else if (typeof message !== "undefined") {\n${indent}  await message.reply(${this._resolveString(action.content || "Hello!")});\n${indent}} else if (typeof member !== "undefined" && member.guild.systemChannel) {\n${indent}  await member.guild.systemChannel.send(${this._resolveString(action.content || "Hello!")});\n${indent}}`;
                     case "add_role": {
                         const roleId = action.roleId || "ROLE_ID";
                         return ctx === "interaction"
@@ -389,12 +392,20 @@ ${actionCode || '    message.reply("Command executed.");'}
                     }
                     case "kick_member":
                         return ctx === "interaction"
-                            ? `${indent}const target = interaction.options.getUser("user") || interaction.user;\n${indent}const gMember = await interaction.guild.members.fetch(target.id);\n${indent}await gMember.kick(${JSON.stringify(action.reason || "Kicked")});`
-                            : `${indent}const target = message.mentions.members.first();\n${indent}if (target) await target.kick(${JSON.stringify(action.reason || "Kicked")});`;
+                            ? `${indent}const kickTarget = interaction.options.getMember("user") || interaction.options.getMember("member") || interaction.member;\n${indent}if (kickTarget) await kickTarget.kick(${JSON.stringify(action.reason || "Kicked")}).catch(() => {});`
+                            : `${indent}const kickTarget = message.mentions.members.first();\n${indent}if (kickTarget) await kickTarget.kick(${JSON.stringify(action.reason || "Kicked")}).catch(() => {});`;
                     case "ban_member":
                         return ctx === "interaction"
-                            ? `${indent}const banTarget = interaction.options.getUser("user") || interaction.user;\n${indent}const banMember = await interaction.guild.members.fetch(banTarget.id);\n${indent}await banMember.ban({ reason: ${JSON.stringify(action.reason || "Banned")} });`
-                            : `${indent}const banTarget = message.mentions.members.first();\n${indent}if (banTarget) await banTarget.ban({ reason: ${JSON.stringify(action.reason || "Banned")} });`;
+                            ? `${indent}const banUser = interaction.options.getUser("user") || interaction.options.getUser("member") || interaction.user;\n${indent}await interaction.guild.members.ban(banUser.id, { reason: ${JSON.stringify(action.reason || "Banned")} }).catch(() => {});`
+                            : `${indent}const banUser = message.mentions.users.first();\n${indent}if (banUser) await interaction.guild.members.ban(banUser.id, { reason: ${JSON.stringify(action.reason || "Banned")} }).catch(() => {});`;
+                    case "mention_user":
+                        return `${indent}const ${action.saveTo || "mention"} = \`<@\${${this._resolveString(action.userId || "${interaction.user.id}")}}>\`;`;
+                    case "mention_role":
+                        return `${indent}const ${action.saveTo || "mention"} = \`<@&\${${this._resolveString(action.roleId || "ROLE_ID")}}\`;`;
+                    case "mention_channel":
+                        return `${indent}const ${action.saveTo || "mention"} = \`<#\${${this._resolveString(action.channelId || "${interaction.channel.id}")}}>\`;`;
+                    case "set_status":
+                        return `${indent}client.user.setPresence({\n${indent}    activities: [{ name: ${this._resolveString(action.text || "Botify")}, type: ActivityType.${action.statusType || "Watching"} }],\n${indent}    status: '${action.status || "online"}'\n${indent}});`;
                     case "create_embed": {
                         const embed = action.embed || {};
                         let code = `${indent}const embed = new EmbedBuilder()`;
@@ -410,7 +421,7 @@ ${actionCode || '    message.reply("Command executed.");'}
                             });
                         }
                         code += ";";
-                        code += `\n${indent}if (typeof interaction !== "undefined") { await interaction.reply({ embeds: [embed] }); }\n${indent}else if (typeof message !== "undefined") { await message.reply({ embeds: [embed] }); }\n${indent}else if (typeof member !== "undefined" && member.guild.systemChannel) { await member.guild.systemChannel.send({ embeds: [embed] }); }`;
+                        code += `\n${indent}if (typeof interaction !== "undefined") {\n${indent}  if (interaction.replied || interaction.deferred) await interaction.followUp({ embeds: [embed] });\n${indent}  else await interaction.reply({ embeds: [embed] });\n${indent}} else if (typeof message !== "undefined") {\n${indent}  await message.reply({ embeds: [embed] });\n${indent}} else if (typeof member !== "undefined" && member.guild.systemChannel) {\n${indent}  await member.guild.systemChannel.send({ embeds: [embed] });\n${indent}}`;
                         return code;
                     }
                     case "if_condition": {
@@ -424,12 +435,10 @@ ${actionCode || '    message.reply("Command executed.");'}
                     case "api_request":
                         return `${indent}const apiResponse = await fetch(${JSON.stringify(action.url || "https://api.example.com")}, { method: ${JSON.stringify(action.method || "GET")} });\n${indent}let apiData;\n${indent}try { apiData = await apiResponse.json(); } catch { apiData = await apiResponse.text(); }`;
                     case "db_read": {
-                        const dbId = _dbCounter++;
-                        return `${indent}const Database_${dbId} = require("better-sqlite3");\n${indent}const db_${dbId} = new Database_${dbId}("./data.db");\n${indent}const rows_${dbId} = db_${dbId}.prepare(${JSON.stringify(action.query || "SELECT * FROM data")}).all();\n${indent}db_${dbId}.close();`;
+                        return `${indent}const db = new Database("./data.db");\n${indent}const rows = db.prepare(${JSON.stringify(action.query || "SELECT * FROM data")}).all();\n${indent}db.close();`;
                     }
                     case "db_write": {
-                        const dbId = _dbCounter++;
-                        return `${indent}const Database_${dbId} = require("better-sqlite3");\n${indent}const db_${dbId} = new Database_${dbId}("./data.db");\n${indent}db_${dbId}.prepare(${JSON.stringify(action.query || "INSERT INTO data (key, value) VALUES (?, ?)")}).run(${JSON.stringify(action.params || [])});\n${indent}db_${dbId}.close();`;
+                        return `${indent}const db = new Database("./data.db");\n${indent}db.prepare(${JSON.stringify(action.query || "INSERT INTO data (key, value) VALUES (?, ?)")}).run(${JSON.stringify(action.params || [])});\n${indent}db.close();`;
                     }
                     case "send_await_interaction": {
                         const time = action.time || 30000;

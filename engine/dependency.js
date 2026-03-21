@@ -29,7 +29,8 @@ class DependencyInstaller {
         callback({ type: "log", message: "Installing Node.js dependencies..." });
         callback({ type: "progress", value: 10 });
 
-        const proc = spawn("npm", ["install", "--production"], {
+        const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+        const proc = spawn(npmCmd, ["install", "--production"], {
             cwd: projectPath,
             shell: true,
             windowsHide: true,

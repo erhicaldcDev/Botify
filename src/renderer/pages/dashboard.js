@@ -10,9 +10,11 @@ function renderDashboard(container) {
       createDesc: "Start a fresh bot project from scratch",
       open: "Open Existing",
       openDesc: "Load a project from your computer",
-      docs: "Documentation",
-      docsDesc: "Learn how to use Botify like a pro",
-      discord: "Discord Server Soon",
+       docs: "Documentation",
+       docsDesc: "Learn how to use Botify like a pro",
+       news: "Project Mentions",
+       newsDesc: "What's new in Botify v1.2.0",
+       discord: "Discord Server Soon",
       discordDesc: "Community server is coming soon!",
       settings: "Global Settings",
       settingsDesc: "Configure your workspace and themes",
@@ -26,9 +28,11 @@ function renderDashboard(container) {
       createDesc: "Zacznij nowy projekt bota od zera",
       open: "Otwórz Projekt",
       openDesc: "Wczytaj projekt ze swojego komputera",
-      docs: "Dokumentacja",
-      docsDesc: "Naucz się obsługi Botify jak profesjonalista",
-      discord: "Serwer Discord wkrótce",
+       docs: "Dokumentacja",
+       docsDesc: "Naucz się obsługi Botify jak profesjonalista",
+       news: "Wzmianki i Nowości",
+       newsDesc: "Co nowego w Botify v1.2.0?",
+       discord: "Serwer Discord wkrótce",
       discordDesc: "Serwer społeczności zostanie wkrótce otwarty!",
       settings: "Ustawienia",
       settingsDesc: "Konfiguruj swój wygląd i opcje",
@@ -52,12 +56,18 @@ function renderDashboard(container) {
           <div class="launchpad-card-desc">${t.createDesc}</div>
         </div>
 
-        <div class="launchpad-card" id="dash-open-project">
-          <div class="launchpad-card-icon">📂</div>
-          <div class="launchpad-card-title">${t.open}</div>
-          <div class="launchpad-card-desc">${t.openDesc}</div>
-        </div>
-      </div>
+         <div class="launchpad-card" id="dash-open-project">
+           <div class="launchpad-card-icon">📂</div>
+           <div class="launchpad-card-title">${t.open}</div>
+           <div class="launchpad-card-desc">${t.openDesc}</div>
+         </div>
+
+         <div class="launchpad-card" onclick="showChangelog()">
+           <div class="launchpad-card-icon">📢</div>
+           <div class="launchpad-card-title">${t.news}</div>
+           <div class="launchpad-card-desc">${t.newsDesc}</div>
+         </div>
+       </div>
 
       <div class="launchpad-grid small-icons">
         <div class="launchpad-card small" onclick="require('electron').shell.openExternal('https://docs.botify.app')">
@@ -93,10 +103,31 @@ function renderDashboard(container) {
     if (typeof window.showNewProjectModal === "function") window.showNewProjectModal();
   };
 
-  container.querySelector("#dash-open-project").onclick = () => {
-    showProjectSelectorModal();
-  };
-}
+   container.querySelector("#dash-open-project").onclick = () => {
+     showProjectSelectorModal();
+   };
+
+   window.showChangelog = () => {
+     showModal(`
+       <div style="padding: 10px;">
+         <h2 class="modal-title">Latest Mentions & Updates</h2>
+         <div class="card" style="margin-top:20px; text-align:left">
+            <h3 style="margin:0">v1.2.0 - Current Version</h3>
+            <ul style="color:var(--text-secondary); margin-top:10px; font-size:14px">
+                <li><b>New:</b> Mention User, Role, & Channel logic blocks.</li>
+                <li><b>New:</b> Set Bot Activity & Status action.</li>
+                <li><b>Fix:</b> Safer interaction replies (FollowUp).</li>
+                <li><b>Fix:</b> Optimized Database initialization.</li>
+                <li><b>Fix:</b> Expanded Discord Intents for generated bots.</li>
+            </ul>
+         </div>
+         <div class="modal-actions">
+           <button class="btn btn-secondary" onclick="hideModal()">Cool!</button>
+         </div>
+       </div>
+     `);
+   };
+ }
 
 async function showProjectSelectorModal() {
   const projects = await window.api.project.list();
