@@ -1,182 +1,199 @@
-function renderDashboard(container) {
-  const lang = localStorage.getItem('bot-maker-lang') || 'en';
-  
-  const content = {
-    en: {
-      welcome: "Welcome to Botify",
-      subtitle: "The most advanced open-source Discord bot creator. Build, deploy, and manage your bots with zero code.",
-      launch: "Launchpad",
-      create: "Create New Project",
-      createDesc: "Start a fresh bot project from scratch",
-      open: "Open Existing",
-      openDesc: "Load a project from your computer",
-       docs: "Documentation",
-       docsDesc: "Learn how to use Botify like a pro",
-       news: "Project Mentions",
-       newsDesc: "What's new in Botify v1.2.0",
-       discord: "Discord Server Soon",
-      discordDesc: "Community server is coming soon!",
-      settings: "Global Settings",
-      settingsDesc: "Configure your workspace and themes",
-      lang: "Select Language"
-    },
-    pl: {
-      welcome: "Witaj w Botify",
-      subtitle: "Najbardziej zaawansowany kreator botów Discord Open-Source. Buduj i zarządzaj bez pisania kodu.",
-      launch: "Panel Startowy",
-      create: "Stwórz Projekt",
-      createDesc: "Zacznij nowy projekt bota od zera",
-      open: "Otwórz Projekt",
-      openDesc: "Wczytaj projekt ze swojego komputera",
-       docs: "Dokumentacja",
-       docsDesc: "Naucz się obsługi Botify jak profesjonalista",
-       news: "Wzmianki i Nowości",
-       newsDesc: "Co nowego w Botify v1.2.0?",
-       discord: "Serwer Discord wkrótce",
-      discordDesc: "Serwer społeczności zostanie wkrótce otwarty!",
-      settings: "Ustawienia",
-      settingsDesc: "Konfiguruj swój wygląd i opcje",
-      lang: "Wybierz Język"
+/* Dashboard: current project overview, setup checklist and project gallery. */
+
+function timeAgo(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const s = Math.floor((Date.now() - d) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
+  return d.toLocaleDateString();
+}
+
+async function renderDashboard(container) {
+  const p = AppState.currentProject;
+  const lang = localStorage.getItem("bot-maker-lang") || "en";
+  const T = lang === "pl"
+    ? { welcome: "Witaj w Botify", sub: "Twórz boty Discord bez pisania kodu - wizualne bloki, embedy, przyciski i formularze.", newBot: "Nowy bot", import: "Importuj", projects: "Twoje projekty", current: "Aktualny projekt" }
+    : { welcome: "Welcome to Botify", sub: "Build Discord bots without writing code - visual blocks, embeds, buttons, menus and modal forms.", newBot: "New bot", import: "Import", projects: "Your projects", current: "Current project" };
+
+  const projects = AppState.projects || [];
+  const stats = p ? {
+    commands: (p.commands || []).length,
+    events: (p.events || []).filter((e) => e.enabled).length,
+    embeds: (p.embeds || []).length,
+    plugins: (p.plugins || []).length,
+  } : null;
+  const steps = p ? [
+    { done: !!p.hasToken, label: "Add your bot token", hint: "Settings → Bot token", action: () => navigateTo("settings") },
+    { done: true, label: "Enable intents in the Developer Portal", hint: "Bot tab → Message Content & Server Members", action: () => openExternal("https://discord.com/developers/applications") },
+    { done: stats.commands > 0, label: "Create a command", hint: "Use a template in Commands", action: () => navigateTo("commands") },
+    { done: AppState.bot.online, label: "Run your bot", hint: "Click Run bot (Ctrl+Enter)", action: () => BotRunner.buildAndRun() },
+  ] : [];
+
+  container.innerHTML = `
+    <div class="dash">
+      <div class="dash-hero">
+        <div>
+          <h1 class="dash-title">${T.welcome}</h1>
+          <p class="dash-sub">${T.sub}</p>
+        </div>
+        <div class="flex gap-sm">
+          <button class="btn btn-primary" data-act="new">${icon("plus", 16)} ${T.newBot}</button>
+          <button class="btn btn-secondary" data-act="import">${icon("upload", 16)} ${T.import}</button>
+        </div>
+      </div>
+
+      ${p ? `
+      <div class="dash-current">
+        <div class="dash-project-card">
+          <div class="dash-project-top">
+            <div class="dash-project-icon">${(ENGINE_INFO[p.engine] || {}).icon || "🤖"}</div>
+            <div class="flex-1">
+              <div class="dash-kicker">${T.current}</div>
+              <div class="dash-project-name">${escapeHtml(p.name)}</div>
+              <div class="dash-project-meta">${escapeHtml((ENGINE_INFO[p.engine] || {}).label || p.engine)} • prefix <code>${escapeHtml(p.prefix)}</code> • edited ${timeAgo(p.updatedAt)}</div>
+            </div>
+            <div class="bot-pill ${AppState.bot.running ? (AppState.bot.online ? "online" : "starting") : ""}">
+              <span class="status-dot ${AppState.bot.running ? (AppState.bot.online ? "running" : "starting") : "stopped"}"></span>
+              ${AppState.bot.running ? (AppState.bot.online ? "Online" : "Starting...") : "Offline"}
+            </div>
+          </div>
+          <div class="stat-row">
+            <button class="stat-tile" data-nav="commands"><span class="stat-num">${stats.commands}</span><span class="stat-lbl">Commands</span></button>
+            <button class="stat-tile" data-nav="events"><span class="stat-num">${stats.events}</span><span class="stat-lbl">Active events</span></button>
+            <button class="stat-tile" data-nav="embeds"><span class="stat-num">${stats.embeds}</span><span class="stat-lbl">Embeds</span></button>
+            <button class="stat-tile" data-nav="plugins"><span class="stat-num">${stats.plugins}</span><span class="stat-lbl">Plugins</span></button>
+          </div>
+          <div class="flex gap-sm mt-md">
+            ${AppState.bot.running
+              ? `<button class="btn btn-danger" data-act="stop">${icon("stop", 14)} Stop bot</button>`
+              : `<button class="btn btn-success" data-act="run">${icon("play", 14)} Build & run</button>`}
+            <button class="btn btn-secondary" data-nav="console">Console</button>
+            <button class="btn btn-ghost" data-act="generate">${icon("code", 14)} Generate code only</button>
+          </div>
+        </div>
+        <div class="dash-checklist card">
+          <div class="card-title mb-md">Get your bot online</div>
+          ${steps.map((s, i) => `
+            <button class="check-step ${s.done ? "done" : ""}" data-step="${i}">
+              <span class="check-circle">${s.done ? icon("check", 14) : i + 1}</span>
+              <span class="check-text"><b>${escapeHtml(s.label)}</b><small>${escapeHtml(s.hint)}</small></span>
+            </button>`).join("")}
+        </div>
+      </div>` : `
+      <div class="dash-empty card">
+        <div class="empty-state-emoji">🤖</div>
+        <div>
+          <div class="card-title">No project open</div>
+          <p class="text-muted text-sm">Create a new bot from the starter template or open one below.</p>
+        </div>
+      </div>`}
+
+      <div class="section-title mt-lg">${T.projects} <span class="text-muted">(${projects.length})</span></div>
+      <div class="project-grid">
+        ${projects.map((proj) => `
+          <div class="project-tile${p && proj.id === p.id ? " current" : ""}" data-open="${proj.id}">
+            <div class="project-tile-icon">${(ENGINE_INFO[proj.engine] || {}).icon || "🤖"}</div>
+            <div class="project-tile-body">
+              <div class="project-tile-name">${escapeHtml(proj.name)}</div>
+              <div class="project-tile-meta">${(proj.commands || []).length} commands • ${timeAgo(proj.updatedAt)}</div>
+            </div>
+            <div class="project-tile-tools">
+              <button class="icon-btn" data-export="${proj.id}" title="Export">${icon("download", 14)}</button>
+              <button class="icon-btn danger" data-delete="${proj.id}" title="Delete">${icon("trash", 14)}</button>
+            </div>
+          </div>`).join("")}
+        <button class="project-tile project-tile-new" data-act="new">${icon("plus", 20)}<span>${T.newBot}</span></button>
+      </div>
+
+      <div class="dash-footer">
+        <div class="lang-selector">
+          <button class="lang-btn ${lang === "en" ? "active" : ""}" data-lang="en">🇺🇸 English</button>
+          <button class="lang-btn ${lang === "pl" ? "active" : ""}" data-lang="pl">🇵🇱 Polski</button>
+        </div>
+        <div class="flex gap-sm">
+          <button class="btn btn-ghost btn-sm" data-link="https://discord.com/developers/applications">${icon("external", 14)} Developer Portal</button>
+          <button class="btn btn-ghost btn-sm" data-link="https://github.com/erhicaldcDev/Botify">${icon("external", 14)} GitHub</button>
+        </div>
+      </div>
+    </div>`;
+
+  const $$ = (s) => container.querySelectorAll(s);
+  $$('[data-act="new"]').forEach((b) => { b.onclick = () => showNewProjectModal(); });
+  $$("[data-nav]").forEach((b) => { b.onclick = () => navigateTo(b.dataset.nav); });
+  $$("[data-link]").forEach((b) => { b.onclick = () => openExternal(b.dataset.link); });
+  $$("[data-lang]").forEach((b) => {
+    b.onclick = () => {
+      localStorage.setItem("bot-maker-lang", b.dataset.lang);
+      window.updateLanguage();
+      renderDashboard(container);
+    };
+  });
+  const run = container.querySelector('[data-act="run"]');
+  if (run) run.onclick = () => BotRunner.buildAndRun();
+  const stop = container.querySelector('[data-act="stop"]');
+  if (stop) stop.onclick = () => BotRunner.stop();
+  const gen = container.querySelector('[data-act="generate"]');
+  if (gen) gen.onclick = () => BotRunner.generate().catch((e) => showToast("Generation failed: " + e.message, "error"));
+  $$("[data-step]").forEach((b) => { b.onclick = () => steps[Number(b.dataset.step)].action(); });
+
+  container.querySelector('[data-act="import"]').onclick = async () => {
+    try {
+      const proj = await window.api.project.import();
+      if (!proj) return;
+      AppState.projects = await window.api.project.list();
+      await openProject(proj.id);
+      renderDashboard(container);
+    } catch (err) {
+      showToast("Import failed: " + err.message, "error");
     }
   };
 
-  const t = content[lang] || content.en;
-
-  container.innerHTML = `
-    <div class="welcome-container">
-      <div class="welcome-hero">
-        <h1 class="welcome-title">${t.welcome}</h1>
-        <p class="welcome-subtitle">${t.subtitle}</p>
-      </div>
-
-      <div class="launchpad-grid" style="grid-template-columns: repeat(2, 1fr); max-width: 800px; margin: 0 auto 40px auto;">
-        <div class="launchpad-card" id="dash-new-project">
-          <div class="launchpad-card-icon">➕</div>
-          <div class="launchpad-card-title">${t.create}</div>
-          <div class="launchpad-card-desc">${t.createDesc}</div>
-        </div>
-
-         <div class="launchpad-card" id="dash-open-project">
-           <div class="launchpad-card-icon">📂</div>
-           <div class="launchpad-card-title">${t.open}</div>
-           <div class="launchpad-card-desc">${t.openDesc}</div>
-         </div>
-
-         <div class="launchpad-card" onclick="showChangelog()">
-           <div class="launchpad-card-icon">📢</div>
-           <div class="launchpad-card-title">${t.news}</div>
-           <div class="launchpad-card-desc">${t.newsDesc}</div>
-         </div>
-       </div>
-
-      <div class="launchpad-grid small-icons">
-        <div class="launchpad-card small" onclick="require('electron').shell.openExternal('https://docs.botify.app')">
-          <div class="launchpad-card-icon" style="font-size: 20px;">📖</div>
-          <div class="launchpad-card-title">${t.docs}</div>
-        </div>
-        <div class="launchpad-card small" onclick="require('electron').shell.openExternal('https://discord.gg/botify')">
-          <div class="launchpad-card-icon" style="font-size: 20px;">💬</div>
-          <div class="launchpad-card-title">${t.discord}</div>
-        </div>
-        <div class="launchpad-card small" onclick="navigateTo('settings')">
-          <div class="launchpad-card-icon" style="font-size: 20px;">⚙️</div>
-          <div class="launchpad-card-title">${t.settings}</div>
-        </div>
-        <div class="launchpad-card small" onclick="require('electron').shell.openExternal('https://github.com/erhicaldcDev')">
-          <div class="launchpad-card-icon" style="font-size: 20px;">⭐</div>
-          <div class="launchpad-card-title">GitHub</div>
-        </div>
-      </div>
-
-      <div class="lang-selector">
-        <button class="lang-btn ${lang === 'en' ? 'active' : ''}" onclick="setLanguage('en')">
-          <span>🇺🇸</span> English
-        </button>
-        <button class="lang-btn ${lang === 'pl' ? 'active' : ''}" onclick="setLanguage('pl')">
-          <span>🇵🇱</span> Polski
-        </button>
-      </div>
-    </div>
-  `;
-
-  container.querySelector("#dash-new-project").onclick = () => {
-    if (typeof window.showNewProjectModal === "function") window.showNewProjectModal();
-  };
-
-   container.querySelector("#dash-open-project").onclick = () => {
-     showProjectSelectorModal();
-   };
-
-   window.showChangelog = () => {
-     showModal(`
-       <div style="padding: 10px;">
-         <h2 class="modal-title">Latest Mentions & Updates</h2>
-         <div class="card" style="margin-top:20px; text-align:left">
-            <h3 style="margin:0">v1.2.0 - Current Version</h3>
-            <ul style="color:var(--text-secondary); margin-top:10px; font-size:14px">
-                <li><b>New:</b> Mention User, Role, & Channel logic blocks.</li>
-                <li><b>New:</b> Set Bot Activity & Status action.</li>
-                <li><b>Fix:</b> Safer interaction replies (FollowUp).</li>
-                <li><b>Fix:</b> Optimized Database initialization.</li>
-                <li><b>Fix:</b> Expanded Discord Intents for generated bots.</li>
-            </ul>
-         </div>
-         <div class="modal-actions">
-           <button class="btn btn-secondary" onclick="hideModal()">Cool!</button>
-         </div>
-       </div>
-     `);
-   };
- }
-
-async function showProjectSelectorModal() {
-  const projects = await window.api.project.list();
-  
-  showModal(`
-    <style>
-      .selector-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 20px; max-height: 400px; overflow-y: auto; padding: 5px; }
-      .project-item { background: var(--bg-tertiary); padding: 15px; border-radius: 12px; border: 1px solid var(--border-subtle); cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px; }
-      .project-item:hover { border-color: var(--accent); background: var(--bg-hover); transform: translateY(-2px); }
-      .proj-icon { font-size: 20px; }
-      .proj-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .proj-engine { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
-    </style>
-    <div style="padding: 10px;">
-      <h2 class="modal-title">Open Your Bot Project</h2>
-      <p style="color: var(--text-secondary); font-size: 13px;">Select a project from the list below to load it into the editor.</p>
-      
-      <div class="selector-grid" id="project-selector-list">
-        ${projects.length === 0 ? '<p style="color: var(--text-muted);">No projects found.</p>' : projects.map(p => `
-          <div class="project-item" onclick="selectProject('${p.id}')">
-            <div class="proj-icon">${p.engine === 'node' ? '🟢' : (p.engine === 'python' ? '🐍' : '🌙')}</div>
-            <div class="project-card-info">
-              <div class="proj-name">${p.name}</div>
-              <div class="proj-engine">${p.engine} • ${p.prefix}</div>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-      
-      <div class="modal-actions" style="margin-top: 20px;">
-        <button class="btn btn-secondary" onclick="hideModal()">Close</button>
-      </div>
-    </div>
-  `, (container) => {
-    window.selectProject = async (id) => {
-      const project = await window.api.project.open(id);
-      if (project) {
-        AppState.currentProject = project;
-        updateSidebar();
-        hideModal();
-        showToast(`Project '${project.name}' loaded!`, "success");
-        navigateTo("dashboard");
+  $$("[data-open]").forEach((tile) => {
+    tile.onclick = async (e) => {
+      if (e.target.closest("button")) return;
+      if (p && tile.dataset.open === p.id) return navigateTo("commands");
+      await openProject(tile.dataset.open);
+      renderDashboard(container);
+    };
+  });
+  $$("[data-export]").forEach((b) => {
+    b.onclick = async () => {
+      try {
+        const file = await window.api.project.export(b.dataset.export);
+        if (file) showToast("Project exported (token not included)", "success");
+      } catch (err) {
+        showToast("Export failed: " + err.message, "error");
       }
+    };
+  });
+  $$("[data-delete]").forEach((b) => {
+    b.onclick = async () => {
+      const proj = projects.find((x) => x.id === b.dataset.delete);
+      if (!(await confirmDialog({ title: `Delete "${proj.name}"?`, message: "The project, its generated code and database will be removed permanently.", confirmText: "Delete", danger: true }))) return;
+      await window.api.project.delete(proj.id);
+      if (p && p.id === proj.id) {
+        AppState.currentProject = null;
+        localStorage.removeItem("botify-last-project");
+      }
+      AppState.projects = await window.api.project.list();
+      updateSidebar();
+      renderDashboard(container);
+      showToast("Project deleted", "success");
     };
   });
 }
 
-window.setLanguage = (lang) => {
-  localStorage.setItem('bot-maker-lang', lang);
-  if (typeof updateLanguage === "function") updateLanguage();
-  renderPage("dashboard");
-};
+let lastDashStatus = "";
+document.addEventListener("botify:status", () => {
+  const key = `${AppState.bot.running}-${AppState.bot.online}`;
+  if (key === lastDashStatus) return;
+  lastDashStatus = key;
+  if (AppState.currentPage === "dashboard") {
+    const el = document.getElementById("page-dashboard");
+    const pill = el && el.querySelector(".bot-pill");
+    if (pill) renderDashboard(el);
+  }
+});

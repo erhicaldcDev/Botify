@@ -1,178 +1,190 @@
+/* Live console: bot process output, build warnings and dependency installs. */
+
 let consoleLines = [];
-let errorLines = [];
-let consoleRendered = false;
+const MAX_LINES = 2000;
+const consoleState = { filter: "all", search: "", autoscroll: true };
 
-function addConsoleLine(event) {
-    consoleLines.push(event);
-    if (consoleLines.length > 500) consoleLines.shift();
-    if (consoleRendered) appendConsoleLineToDOM(event, "console-output");
-
-    
-    if (event.type === 'error') {
-        errorLines.push(event);
-        if (errorLines.length > 100) errorLines.shift();
-        if (consoleRendered) {
-            appendConsoleLineToDOM(event, "console-errors");
-            updateErrorBadge();
-        }
-    }
+function lineMatches(event) {
+  const isErr = event.type === "error" || event.type === "stderr";
+  if (consoleState.filter === "errors" && !isErr) return false;
+  if (consoleState.filter === "warnings" && event.type !== "warn") return false;
+  if (consoleState.search && !String(event.message).toLowerCase().includes(consoleState.search)) return false;
+  return true;
 }
 
-function handleDepsProgress(event) {
-    if (event.type === "log" || event.type === "error") {
-        addConsoleLine({ type: event.type === "error" ? "error" : "info", message: event.message, timestamp: new Date().toISOString() });
-    }
-    if (event.type === "progress") {
-        const bar = document.getElementById("deps-progress-fill");
-        if (bar) bar.style.width = event.value + "%";
-    }
-    if (event.type === "done") {
-        addConsoleLine({ type: "info", message: event.message, timestamp: new Date().toISOString() });
-        showToast("Dependencies installed", "success");
-    }
-}
-
-function appendConsoleLineToDOM(event, targetId = "console-output") {
-    const output = document.getElementById(targetId);
-    if (!output || !output.isConnected) return;
-    const line = document.createElement("span");
-    line.className = `console-line ${event.type}`;
-    const ts = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : "";
-    line.textContent = `[${ts}] ${event.message}`;
-    output.appendChild(line);
-    output.scrollTop = output.scrollHeight;
+function consoleLineEl(event) {
+  const line = document.createElement("div");
+  const isErr = event.type === "error" || event.type === "stderr";
+  line.className = `console-line ${event.type}${isErr ? " is-error" : ""}`;
+  const ts = event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : "";
+  const time = document.createElement("span");
+  time.className = "console-time";
+  time.textContent = ts;
+  const msg = document.createElement("span");
+  msg.className = "console-msg";
+  msg.textContent = event.message;
+  // Make the invite link clickable.
+  const invite = String(event.message).match(/https:\/\/discord\.com\/oauth2\/authorize\S+/);
+  if (invite) {
+    msg.textContent = event.message.replace(invite[0], "");
+    const a = document.createElement("a");
+    a.className = "console-link";
+    a.textContent = "Invite bot to a server ↗";
+    a.onclick = () => openExternal(invite[0]);
+    msg.appendChild(a);
+  }
+  line.append(time, msg);
+  return line;
 }
 
 function updateErrorBadge() {
-    const badge = document.getElementById("error-badge");
-    if (!badge) return;
-    if (errorLines.length > 0) {
-        badge.style.display = "inline-block";
-        badge.textContent = errorLines.length;
-    } else {
-        badge.style.display = "none";
-    }
+  const count = consoleLines.filter((l) => l.type === "error" || l.type === "stderr").length;
+  const nav = document.getElementById("nav-error-count");
+  if (nav) {
+    nav.textContent = count > 99 ? "99+" : count;
+    nav.style.display = count ? "" : "none";
+  }
+  const tab = document.querySelector('[data-filter="errors"] .badge');
+  if (tab) {
+    tab.textContent = count;
+    tab.style.display = count ? "" : "none";
+  }
 }
 
-document.addEventListener('botify:generator_error', (e) => {
-    addConsoleLine({ type: "error", message: "GENERATOR ERROR: " + e.detail, timestamp: new Date().toISOString() });
-});
+function addConsoleLine(event) {
+  if (!event || event.message === undefined) return;
+  consoleLines.push(event);
+  if (consoleLines.length > MAX_LINES) consoleLines.splice(0, consoleLines.length - MAX_LINES);
+  const out = document.getElementById("console-output");
+  if (out && out.isConnected && lineMatches(event)) {
+    out.querySelector(".console-empty")?.remove();
+    out.appendChild(consoleLineEl(event));
+    while (out.childElementCount > MAX_LINES) out.firstElementChild.remove();
+    if (consoleState.autoscroll) out.scrollTop = out.scrollHeight;
+  }
+  updateErrorBadge();
+}
+
+function handleDepsProgress(event) {
+  if (event.type === "log" || event.type === "error") {
+    addConsoleLine({ type: event.type === "error" ? "error" : "info", message: event.message, timestamp: new Date().toISOString() });
+  }
+  const wrap = document.getElementById("deps-progress");
+  const bar = document.getElementById("deps-progress-fill");
+  if (event.type === "progress" && bar) {
+    wrap.style.display = "block";
+    bar.style.width = event.value + "%";
+  }
+  if (event.type === "done") {
+    addConsoleLine({ type: "info", message: "✔ " + event.message, timestamp: new Date().toISOString() });
+    showToast("Dependencies installed", "success");
+  }
+  if ((event.type === "done" || event.type === "error") && wrap) setTimeout(() => { wrap.style.display = "none"; }, 800);
+}
+
+function updateConsoleStatusPill() {
+  const pill = document.querySelector('#page-console [data-el="pill"]');
+  if (!pill) return;
+  const { running, online } = AppState.bot;
+  pill.className = "bot-pill " + (running ? (online ? "online" : "starting") : "");
+  pill.innerHTML = `<span class="status-dot ${running ? (online ? "running" : "starting") : "stopped"}"></span> ${running ? (online ? "Online" : "Starting...") : "Offline"}`;
+}
+document.addEventListener("botify:status", updateConsoleStatusPill);
 
 function renderConsole(el) {
-    if (!AppState.currentProject) {
-        el.innerHTML = '<div class="empty-state"><div class="empty-state-title">No project selected</div></div>';
-        return;
-    }
+  if (!AppState.currentProject) return noProjectState(el, "the console");
 
-    el.innerHTML = `
+  el.innerHTML = `
     <div class="page-header">
-      <div><h1 class="page-title">Live Console</h1><p class="page-subtitle">Bot process output</p></div>
-      <div class="status-indicator">
-        <div class="status-dot" id="console-status-dot"></div>
-        <span id="console-status-text">Stopped</span>
-      </div>
+      <div><h1 class="page-title">Console</h1><p class="page-subtitle">Live output from your bot, build warnings and install logs.</p></div>
+      <div class="bot-pill" data-el="pill"></div>
     </div>
     <div class="console-controls">
-      <button class="btn btn-success btn-sm" id="con-start">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-        Start
-      </button>
-      <button class="btn btn-danger btn-sm" id="con-stop">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-        Stop
-      </button>
-      <button class="btn btn-secondary btn-sm" id="con-restart">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-        Restart
-      </button>
-      <button class="btn btn-ghost btn-sm" id="con-clear">Clear</button>
-      <button class="btn btn-secondary btn-sm" id="con-generate">Generate & Install</button>
+      <button class="btn btn-success btn-sm" data-act="run">${icon("play", 13)} Build & run</button>
+      <button class="btn btn-danger btn-sm" data-act="stop">${icon("stop", 13)} Stop</button>
+      <button class="btn btn-secondary btn-sm" data-act="restart">${icon("restart", 14)} Restart</button>
+      <span class="toolbar-sep"></span>
+      <button class="btn btn-ghost btn-sm" data-act="generate">${icon("code", 14)} Generate code</button>
+      <button class="btn btn-ghost btn-sm" data-act="install">${icon("download", 14)} Reinstall dependencies</button>
+      <button class="btn btn-ghost btn-sm" data-act="folder">${icon("folder", 14)} Open folder</button>
     </div>
-    
-    <div style="display: flex; gap: 8px; margin-bottom: 8px; margin-top: 16px;">
-        <div class="console-tab active" data-target="console-output" style="cursor: pointer; padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: 13px; color: var(--text-primary); border-bottom: 2px solid var(--primary); text-transform: uppercase;">Terminal Logs</div>
-        <div class="console-tab" data-target="console-errors" style="cursor: pointer; padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: 13px; color: var(--text-muted); text-transform: uppercase;">Bot Errors <span id="error-badge" style="background: var(--error); color: white; border-radius: 12px; padding: 2px 6px; font-size: 10px; display: none;">0</span></div>
-    </div>
+    <div class="progress-bar" id="deps-progress" style="display:none"><div class="progress-bar-fill" id="deps-progress-fill"></div></div>
+    <div class="console-panel">
+      <div class="console-toolbar">
+        <div class="tabs tabs-sm">
+          <button class="tab ${consoleState.filter === "all" ? "active" : ""}" data-filter="all">All</button>
+          <button class="tab ${consoleState.filter === "errors" ? "active" : ""}" data-filter="errors">Errors <span class="badge badge-err" style="display:none"></span></button>
+          <button class="tab ${consoleState.filter === "warnings" ? "active" : ""}" data-filter="warnings">Warnings</button>
+        </div>
+        <div class="search-box search-box-sm">${icon("search", 13)}<input class="input input-sm" data-el="search" placeholder="Filter output..." value="${escapeHtml(consoleState.search)}" /></div>
+        <div class="flex-1"></div>
+        <label class="toggle-row toggle-row-sm"><div class="toggle toggle-sm ${consoleState.autoscroll ? "active" : ""}" data-el="autoscroll"></div><span>Auto-scroll</span></label>
+        <button class="icon-btn" data-act="copy" title="Copy output">${icon("copy", 15)}</button>
+        <button class="icon-btn" data-act="clear" title="Clear">${icon("trash", 15)}</button>
+      </div>
+      <div class="console-output" id="console-output"></div>
+    </div>`;
 
-    <div class="progress-bar" id="deps-progress" style="display:none">
-      <div class="progress-bar-fill" id="deps-progress-fill"></div>
-    </div>
-    <div class="console-output" id="console-output"></div>
-    <div class="console-output" id="console-errors" style="display:none; background: rgba(255,0,0,0.05);"></div>
-  `;
-
-    consoleRendered = true;
-    const output = el.querySelector("#console-output");
-    const errorsTarget = el.querySelector("#console-errors");
-    consoleLines.forEach((line) => appendConsoleLineToDOM(line, "console-output"));
-    errorLines.forEach((line) => appendConsoleLineToDOM(line, "console-errors"));
-
-    updateErrorBadge();
-    updateConsoleStatus();
-
-    el.querySelectorAll(".console-tab").forEach(tab => {
-        tab.onclick = () => {
-            el.querySelectorAll(".console-tab").forEach(t => {
-                t.classList.remove("active");
-                t.style.borderBottom = "none";
-                t.style.color = "var(--text-muted)";
-            });
-            tab.classList.add("active");
-            tab.style.borderBottom = "2px solid var(--primary)";
-            tab.style.color = "var(--text-primary)";
-
-            el.querySelectorAll(".console-output").forEach(c => c.style.display = "none");
-            el.querySelector("#" + tab.dataset.target).style.display = "block";
-        };
-    });
-
-    el.querySelector("#con-start").onclick = async () => {
-        addConsoleLine({ type: "info", message: "Starting bot...", timestamp: new Date().toISOString() });
-        await window.api.engine.start(AppState.currentProject);
-        setTimeout(updateConsoleStatus, 500);
-    };
-
-    el.querySelector("#con-stop").onclick = async () => {
-        await window.api.engine.stop();
-        addConsoleLine({ type: "info", message: "Bot stopped.", timestamp: new Date().toISOString() });
-        setTimeout(updateConsoleStatus, 500);
-    };
-
-    el.querySelector("#con-restart").onclick = async () => {
-        addConsoleLine({ type: "info", message: "Restarting bot...", timestamp: new Date().toISOString() });
-        await window.api.engine.restart(AppState.currentProject);
-        setTimeout(updateConsoleStatus, 500);
-    };
-
-    el.querySelector("#con-clear").onclick = () => {
-        consoleLines = [];
-        errorLines = [];
-        output.innerHTML = "";
-        errorsTarget.innerHTML = "";
-        updateErrorBadge();
-    };
-
-    el.querySelector("#con-generate").onclick = async () => {
-        addConsoleLine({ type: "info", message: "Generating code...", timestamp: new Date().toISOString() });
-        try {
-            await window.api.generate.code(AppState.currentProject);
-            addConsoleLine({ type: "info", message: "Code generated. Installing dependencies...", timestamp: new Date().toISOString() });
-            const progressBar = el.querySelector("#deps-progress");
-            progressBar.style.display = "block";
-            await window.api.deps.install(AppState.currentProject);
-            progressBar.style.display = "none";
-        } catch (err) {
-            addConsoleLine({ type: "error", message: "Failed: " + err.message, timestamp: new Date().toISOString() });
-        }
-    };
-
-    async function updateConsoleStatus() {
-        const status = await window.api.engine.status();
-        const dot = el.querySelector("#console-status-dot");
-        const text = el.querySelector("#console-status-text");
-        if (dot && text) {
-            dot.className = `status-dot ${status.running ? "running" : "stopped"}`;
-            text.textContent = status.running ? `Running (${status.engine})` : "Stopped";
-        }
+  const out = el.querySelector("#console-output");
+  const redraw = () => {
+    out.innerHTML = "";
+    const lines = consoleLines.filter(lineMatches);
+    if (!lines.length) {
+      out.innerHTML = `<div class="console-empty">${consoleLines.length ? "No lines match the filter." : "No output yet. Click <b>Build & run</b> to start your bot."}</div>`;
     }
+    const frag = document.createDocumentFragment();
+    lines.forEach((l) => frag.appendChild(consoleLineEl(l)));
+    out.appendChild(frag);
+    out.scrollTop = out.scrollHeight;
+    updateErrorBadge();
+  };
+  redraw();
+
+  updateConsoleStatusPill();
+
+  el.querySelectorAll("[data-filter]").forEach((tab) => {
+    tab.onclick = () => {
+      consoleState.filter = tab.dataset.filter;
+      el.querySelectorAll("[data-filter]").forEach((t) => t.classList.toggle("active", t === tab));
+      redraw();
+    };
+  });
+  el.querySelector('[data-el="search"]').oninput = debounce((e) => { consoleState.search = e.target.value.toLowerCase(); redraw(); }, 150);
+  el.querySelector('[data-el="autoscroll"]').onclick = (e) => {
+    consoleState.autoscroll = !consoleState.autoscroll;
+    e.currentTarget.classList.toggle("active", consoleState.autoscroll);
+  };
+  el.querySelector('[data-act="clear"]').onclick = () => { consoleLines = []; redraw(); };
+  el.querySelector('[data-act="copy"]').onclick = async () => {
+    const text = consoleLines.filter(lineMatches).map((l) => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.message}`).join("\n");
+    try { await navigator.clipboard.writeText(text); showToast("Output copied", "success"); } catch { showToast("Clipboard unavailable", "error"); }
+  };
+  el.querySelector('[data-act="run"]').onclick = () => BotRunner.buildAndRun();
+  el.querySelector('[data-act="stop"]').onclick = () => BotRunner.stop();
+  el.querySelector('[data-act="restart"]').onclick = async () => {
+    addConsoleLine({ type: "info", message: "Restarting bot...", timestamp: new Date().toISOString() });
+    await window.api.engine.restart(AppState.currentProject);
+    setTimeout(refreshBotStatus, 800);
+  };
+  el.querySelector('[data-act="generate"]').onclick = async () => {
+    try {
+      const r = await BotRunner.generate();
+      addConsoleLine({ type: "info", message: `✔ Generated ${r.files.length} files in ${r.outputPath}`, timestamp: new Date().toISOString() });
+    } catch (err) {
+      addConsoleLine({ type: "error", message: "Generation failed: " + err.message, timestamp: new Date().toISOString() });
+    }
+  };
+  el.querySelector('[data-act="install"]').onclick = async () => {
+    try {
+      await BotRunner.generate({ quiet: true });
+      await BotRunner.install();
+    } catch (err) {
+      addConsoleLine({ type: "error", message: "Install failed: " + err.message, timestamp: new Date().toISOString() });
+    }
+  };
+  el.querySelector('[data-act="folder"]').onclick = async () => {
+    const paths = await window.api.app.getPath();
+    const sep = paths.projects.includes("\\") ? "\\" : "/";
+    window.api.shell.openPath([paths.projects, AppState.currentProject.id, "output"].join(sep)).catch((e) => showToast(e.message, "error"));
+  };
 }

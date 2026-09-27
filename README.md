@@ -8,16 +8,17 @@ Botify is an advanced, Electron-based desktop application that allows you to cre
 
 ## 🚀 Key Features
 
-*   **Blueprint Visual Scripting (BVS):** Create slash commands visually using drag-and-drop nodes. Connect nodes with bezier curve wires to define complex logic flows (If Conditions, API Requests, Database interactions, etc.).
-*   **Multi-Engine Support:** Generate bot code for your preferred ecosystem:
-    *   `Discord.JS` (Node.js)
-    *   `Discord.PY` (Python)
-    *   `Discordia` (Lua)
-*   **Plugin Ecosystem:** Extend the platform's functionality with custom plugins. Plugins can introduce new bot commands, system integrations, and even add completely custom BVS visual blocks/nodes to the Visual Editor!
-*   **Integrated Code IDE:** A fully functional Monaco-based editor (the same engine powering VS Code) integrated right into the app. Edit the automatically generated code directly, complete with syntax highlighting and syntax error checking.
-*   **Live Console & Testing:** Run your bot directly from the app. View real-time output, errors, and terminal logs in the integrated Live Console.
-*   **Internationalization (i18n):** Full support for multiple languages (currently English and Polish), instantly switchable from the Settings page.
-*   **Dashboard & Built-in Services:** Manage your Project Token, manage visual Embeds, configure Database inputs, and view Analytics all in one place.
+*   **Blueprint Visual Scripting (BVS):** Build slash & prefix commands and event handlers as node graphs. Pan/zoom canvas, drag blocks from the palette, drag wires between ◆ pins (drop a wire on empty space to create the next block), right-click menus, undo/redo, auto-arrange and live validation. Every graph compiles to working bot code.
+*   **40+ blocks:** replies, embeds, DMs, reactions, moderation (kick, ban, timeout, roles, nicknames, purge), conditions & loops, variables, random values, persistent storage, SQL, HTTP requests, bot status and custom code.
+*   **Interactive modules:** **Buttons**, **Select menus** and **Modal forms** (pop-up text inputs) that wait for the user and store the answer in a variable - `{clicked}`, `{selected}`, `{form.email}`.
+*   **Embed Styler:** design embeds (author, title, description with markdown toolbar, fields, images, footer, timestamp, colors) with a **live Discord-accurate preview**, then send them from any flow with *Send Saved Embed*. Import/export Discord embed JSON.
+*   **Live previews everywhere:** the block inspector shows exactly how messages, embeds, buttons, menus and modals will look in Discord.
+*   **Placeholders & variables:** `{user}`, `{server}`, `{channel}`, command arguments and saved values work in every text field.
+*   **Multi-engine output:** `Discord.JS` (Node.js), `Discord.PY` (Python) and `Discordia` (Lua, prefix commands). Generated bots ship with a small runtime helper, are syntax-checked on build and report clear errors (bad token, missing intents).
+*   **One-click Build & Run:** saves, generates, installs dependencies when needed and starts the bot; live console with filters and a clickable invite link.
+*   **Help Menu designer:** generates an interactive `/help` with a select menu, buttons or a single embed.
+*   **Plugins:** enable per project; plugins add commands, events, hooks and new visual blocks.
+*   **Code IDE, Database editor, themes (Dark, Midnight, Discord, Light, Cyberpunk) and English/Polish UI.**
 
 ## 📦 How to run / Installation
 
@@ -29,7 +30,7 @@ Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
 
 1. Clone or download this repository.
 2. Open a terminal in the project directory.
-3. Install dependencies:
+3. Install dependencies (this also rebuilds the SQLite module for Electron):
    ```bash
    npm install
    ```
@@ -48,24 +49,30 @@ This will generate the built application in the `dist/Botify-win32-x64/` directo
 
 ## 🧩 Developing Plugins
 
-Plugins are structured as simple folders inside the `plugins/` directory. A plugin must contain an `index.js` (or other entry point) and a `manifest.json`.
-
-**Adding Custom BVS Blocks:**
-Your plugin can inject custom nodes into the Visual Editor by exposing a `blocks` array in its `module.exports`:
+Plugins are folders inside `plugins/` with a `manifest.json` and an entry file. They can provide commands, events, hooks and **new visual blocks** that compile to code:
 
 ```javascript
 module.exports = {
-    name: "My Custom Plugin",
-    dependencies: {},
     blocks: [
-        { type: "send_meme", label: "Send Meme", label_pl: "Wyślij Mema", icon: "🐸" },
-        { type: "random_chance", label: "50/50 Chance", label_pl: "Szansa 50/50", icon: "🎲", pins: ["true_next", "false_next", "next"] }
+        {
+            type: "hello_shout", label: "Shout", icon: "📣",
+            fields: [{ key: "text", label: "Text", type: "text", default: "hello {user.name}" }],
+            compile: { node: (action, h) => `await B.reply(ctx, String(${h.text(action.text)}).toUpperCase());` }
+        }
     ],
-    commands: [
-        // ... command configurations
-    ]
+    commands: [ /* same action objects as the visual editor */ ]
 };
 ```
+
+See [`docs/`](docs/README.md) - especially [`docs/ACTIONS.md`](docs/ACTIONS.md) (all blocks) and [`docs/EXAMPLE.md`](docs/EXAMPLE.md).
+
+## 🤖 Getting your bot online
+
+1. Create an application at the [Discord Developer Portal](https://discord.com/developers/applications), open **Bot** and click **Reset Token**.
+2. Enable **Message Content** and **Server Members** under *Privileged Gateway Intents* (or turn them off in Botify Settings).
+3. Paste the token in Botify → **Settings → Bot token**.
+4. Click **Run bot**. The console prints an invite link - open it to add the bot to your server.
+5. Optional: set a *Test server ID* in Settings so slash commands update instantly while you build.
 
 ## 🛠 Tech Stack
 

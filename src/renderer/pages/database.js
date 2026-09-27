@@ -1,164 +1,192 @@
-function renderDatabase(el) {
-    if (!AppState.currentProject) {
-        el.innerHTML = '<div class="empty-state"><div class="empty-state-title">No project selected</div></div>';
-        return;
-    }
+/* Database: browse and edit the SQLite database your bot uses (output/data.db). */
 
-    el.innerHTML = `
+function renderDatabase(el) {
+  if (!AppState.currentProject) return noProjectState(el, "the database editor");
+  const pid = AppState.currentProject.id;
+  let current = el.dataset.table || null;
+
+  el.innerHTML = `
     <div class="page-header">
-      <div><h1 class="page-title">Database</h1><p class="page-subtitle">SQLite data editor</p></div>
+      <div><h1 class="page-title">Database</h1><p class="page-subtitle">The SQLite database your bot reads and writes (SQL blocks, Save/Load Data blocks).</p></div>
       <div class="flex gap-sm">
-        <button class="btn btn-secondary" id="db-refresh">Refresh</button>
-        <button class="btn btn-primary" id="db-add-table">Add Table</button>
+        <button class="btn btn-secondary" data-act="refresh">${icon("restart", 14)} Refresh</button>
+        <button class="btn btn-secondary" data-act="sql">${icon("code", 14)} Run SQL</button>
+        <button class="btn btn-primary" data-act="add-table">${icon("plus", 15)} New table</button>
       </div>
     </div>
-    <div id="db-tables-list"></div>
-    <div id="db-table-view" class="mt-lg"></div>
-  `;
+    <div class="db-layout">
+      <aside class="db-tables" data-el="tables"></aside>
+      <section class="db-view" data-el="view"></section>
+    </div>`;
 
-    loadTables();
+  const tablesEl = el.querySelector('[data-el="tables"]');
+  const view = el.querySelector('[data-el="view"]');
 
-    el.querySelector("#db-refresh").onclick = loadTables;
-    el.querySelector("#db-add-table").onclick = () => showAddTableModal();
+  async function loadTables() {
+    let tables = [];
+    try {
+      tables = await window.api.db.getTables(pid);
+    } catch (err) {
+      tablesEl.innerHTML = `<div class="notice notice-err notice-sm">${escapeHtml(err.message)}</div>`;
+      return;
+    }
+    if (!tables.length) {
+      tablesEl.innerHTML = '<div class="empty-state"><div class="empty-state-emoji">🗄️</div><div class="empty-state-title">No tables yet</div><div class="empty-state-text">They are created when your bot first uses a SQL / Save Data block, or add one here.</div></div>';
+      view.innerHTML = "";
+      return;
+    }
+    if (!current || !tables.some((t) => t.name === current)) current = tables[0].name;
+    tablesEl.innerHTML = tables.map((t) => `
+      <button class="db-table-item${t.name === current ? " active" : ""}" data-table="${escapeHtml(t.name)}">
+        <span class="db-table-name">${escapeHtml(t.name)}</span>
+        <span class="db-table-meta">${t.rowCount} rows • ${t.columns.length} cols</span>
+      </button>`).join("");
+    tablesEl.querySelectorAll("[data-table]").forEach((b) => {
+      b.onclick = () => {
+        current = b.dataset.table;
+        el.dataset.table = current;
+        tablesEl.querySelectorAll("[data-table]").forEach((x) => x.classList.toggle("active", x === b));
+        viewTable(tables.find((t) => t.name === current));
+      };
+    });
+    viewTable(tables.find((t) => t.name === current));
+  }
 
-    async function loadTables() {
-        try {
-            const tables = await window.api.db.getTables(AppState.currentProject.id);
-            const list = el.querySelector("#db-tables-list");
-            if (!tables || tables.length === 0) {
-                list.innerHTML = '<div class="empty-state"><div class="empty-state-title">No tables</div><div class="empty-state-text">Add a table to store data for your bot</div></div>';
-                return;
-            }
-            list.innerHTML = `<div class="card-grid">${tables.map((t) => `
-        <div class="stat-card" style="cursor:pointer" data-table="${t.name}">
-          <div class="stat-icon blue">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-          </div>
-          <div>
-            <div class="stat-value" style="font-size:18px">${t.name}</div>
-            <div class="stat-label">${t.rowCount} rows · ${t.columns.length} columns</div>
+  async function viewTable(table) {
+    if (!table) return;
+    let rows = [];
+    try {
+      rows = await window.api.db.getTableData(pid, table.name);
+    } catch (err) {
+      view.innerHTML = `<div class="notice notice-err">${escapeHtml(err.message)}</div>`;
+      return;
+    }
+    const cols = table.columns;
+    view.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">${escapeHtml(table.name)} <span class="text-muted text-sm">(${rows.length}${rows.length >= 1000 ? "+" : ""} rows)</span></div>
+          <div class="flex gap-sm">
+            <button class="btn btn-primary btn-sm" data-act="add-row">${icon("plus", 14)} Add row</button>
+            <button class="btn btn-danger-ghost btn-sm" data-act="drop">${icon("trash", 14)} Drop table</button>
           </div>
         </div>
-      `).join("")}</div>`;
-            list.querySelectorAll("[data-table]").forEach((card) => {
-                card.onclick = () => viewTable(card.dataset.table);
-            });
-        } catch {
-            el.querySelector("#db-tables-list").innerHTML = '<div class="empty-state"><div class="empty-state-title">Database not initialized</div></div>';
-        }
-    }
+        ${rows.length === 0 ? '<p class="text-muted text-sm">No rows.</p>' : `
+        <div class="table-wrapper">
+          <table>
+            <thead><tr>${cols.map((c) => `<th>${escapeHtml(c.name)}<small>${escapeHtml(c.type || "")}${c.pk ? " • PK" : ""}</small></th>`).join("")}<th></th></tr></thead>
+            <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td title="${escapeHtml(r[c.name] ?? "")}">${r[c.name] === null || r[c.name] === undefined ? '<span class="text-muted">NULL</span>' : escapeHtml(String(r[c.name]).slice(0, 200))}</td>`).join("")}
+              <td class="td-actions"><button class="icon-btn danger" data-rowid="${r.__rowid}" title="Delete row">${icon("trash", 14)}</button></td></tr>`).join("")}</tbody>
+          </table>
+        </div>`}
+      </div>`;
 
-    async function viewTable(tableName) {
-        const view = el.querySelector("#db-table-view");
+    view.querySelector('[data-act="drop"]').onclick = async () => {
+      if (!(await confirmDialog({ title: `Drop table "${table.name}"?`, message: "All rows will be deleted permanently.", confirmText: "Drop table", danger: true }))) return;
+      await window.api.db.dropTable(pid, table.name);
+      current = null;
+      loadTables();
+    };
+    view.querySelector('[data-act="add-row"]').onclick = () => {
+      const dataCols = cols.filter((c) => !(c.pk && /INT/i.test(c.type || "")));
+      showModal(`
+        <h2 class="modal-title">Add row to ${escapeHtml(table.name)}</h2>
+        ${dataCols.map((c) => `<div class="input-group"><label class="input-label">${escapeHtml(c.name)} <small class="text-muted">${escapeHtml(c.type || "")}</small></label><input class="input" data-col="${escapeHtml(c.name)}" /></div>`).join("")}
+        <div class="modal-actions"><button class="btn btn-secondary" data-act="cancel">Cancel</button><button class="btn btn-primary" data-act="ok">Insert</button></div>`, (c, close) => {
+        c.querySelector('[data-act="cancel"]').onclick = close;
+        c.querySelector('[data-act="ok"]').onclick = async () => {
+          const data = {};
+          c.querySelectorAll("[data-col]").forEach((inp) => {
+            if (inp.value === "") return;
+            const col = cols.find((x) => x.name === inp.dataset.col);
+            data[inp.dataset.col] = /INT|REAL|NUM/i.test(col.type || "") && inp.value.trim() !== "" && !isNaN(Number(inp.value)) ? Number(inp.value) : inp.value;
+          });
+          try {
+            await window.api.db.insertRow(pid, table.name, data);
+            close();
+            loadTables();
+            showToast("Row added", "success");
+          } catch (err) {
+            showToast(err.message, "error");
+          }
+        };
+      }, { size: "sm" });
+    };
+    view.querySelectorAll("[data-rowid]").forEach((b) => {
+      b.onclick = async () => {
+        await window.api.db.deleteRow(pid, table.name, Number(b.dataset.rowid));
+        loadTables();
+      };
+    });
+  }
+
+  el.querySelector('[data-act="refresh"]').onclick = loadTables;
+
+  el.querySelector('[data-act="sql"]').onclick = () => {
+    showModal(`
+      <h2 class="modal-title">Run SQL</h2>
+      <textarea class="input input-code" rows="6" data-el="sql" placeholder="SELECT * FROM botify_kv LIMIT 20">${current ? `SELECT * FROM "${escapeHtml(current)}" LIMIT 50` : ""}</textarea>
+      <div class="modal-actions"><button class="btn btn-secondary" data-act="cancel">Close</button><button class="btn btn-primary" data-act="run">${icon("play", 12)} Run</button></div>
+      <div data-el="result" class="mt-md"></div>`, (c, close) => {
+      c.querySelector('[data-act="cancel"]').onclick = close;
+      c.querySelector('[data-act="run"]').onclick = async () => {
+        const res = c.querySelector('[data-el="result"]');
         try {
-            const rows = await window.api.db.getTableData(AppState.currentProject.id, tableName);
-            const tables = await window.api.db.getTables(AppState.currentProject.id);
-            const table = tables.find((t) => t.name === tableName);
-            const cols = table ? table.columns : [];
-
-            view.innerHTML = `
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">${tableName}</div>
-            <button class="btn btn-primary btn-sm" id="db-add-row">Add Row</button>
-          </div>
-          ${rows.length === 0 ? '<p style="color:var(--text-muted)">No data</p>' : `
-          <div class="table-wrapper">
-            <table>
-              <thead><tr>${cols.map((c) => `<th>${c.name}</th>`).join("")}<th>Actions</th></tr></thead>
-              <tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td>${r[c.name] !== undefined ? r[c.name] : ""}</td>`).join("")}
-                <td><button class="btn btn-danger btn-sm row-del" data-id="${r.id}">Delete</button></td>
-              </tr>`).join("")}</tbody>
-            </table>
-          </div>`}
-        </div>
-      `;
-
-            view.querySelector("#db-add-row").onclick = () => {
-                const dataCols = cols.filter((c) => c.name !== "id");
-                showModal(`
-          <h2 class="modal-title">Add Row to ${tableName}</h2>
-          ${dataCols.map((c) => `<div class="input-group"><label class="input-label">${c.name}</label><input class="input" data-col="${c.name}" /></div>`).join("")}
-          <div class="modal-actions">
-            <button class="btn btn-secondary" id="row-cancel">Cancel</button>
-            <button class="btn btn-primary" id="row-save">Insert</button>
-          </div>
-        `, (container) => {
-                    container.querySelector("#row-cancel").onclick = hideModal;
-                    container.querySelector("#row-save").onclick = async () => {
-                        const data = {};
-                        container.querySelectorAll("[data-col]").forEach((inp) => { data[inp.dataset.col] = inp.value; });
-                        await window.api.db.insertRow(AppState.currentProject.id, tableName, data);
-                        hideModal();
-                        viewTable(tableName);
-                        showToast("Row added", "success");
-                    };
-                });
-            };
-
-            view.querySelectorAll(".row-del").forEach((btn) => {
-                btn.onclick = async () => {
-                    await window.api.db.deleteRow(AppState.currentProject.id, tableName, parseInt(btn.dataset.id));
-                    viewTable(tableName);
-                    showToast("Row deleted", "success");
-                };
-            });
-        } catch {
-            view.innerHTML = '<p style="color:var(--text-muted)">Error loading table data</p>';
+          const out = await window.api.db.query(pid, c.querySelector('[data-el="sql"]').value, []);
+          if (Array.isArray(out)) {
+            const keys = out.length ? Object.keys(out[0]) : [];
+            res.innerHTML = out.length ? `<div class="table-wrapper"><table><thead><tr>${keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("")}</tr></thead><tbody>${out.slice(0, 200).map((r) => `<tr>${keys.map((k) => `<td>${escapeHtml(r[k] ?? "NULL")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : '<p class="text-muted text-sm">No rows.</p>';
+          } else {
+            res.innerHTML = `<div class="notice notice-ok notice-sm">${icon("check", 14)} ${out && out.changes !== undefined ? `${out.changes} row(s) changed` : "Done"}</div>`;
+            loadTables();
+          }
+        } catch (err) {
+          res.innerHTML = `<div class="notice notice-err notice-sm">${escapeHtml(err.message.replace(/^Error invoking remote method '[^']+': /, ""))}</div>`;
         }
-    }
+      };
+    }, { size: "lg" });
+  };
 
-    function showAddTableModal() {
-        let columns = [{ name: "", type: "TEXT" }];
+  el.querySelector('[data-act="add-table"]').onclick = () => {
+    const columns = [{ name: "", type: "TEXT" }];
+    showModal(`
+      <h2 class="modal-title">New table</h2>
+      <div class="input-group"><label class="input-label">Table name</label><input class="input input-code" data-el="name" placeholder="my_table" autofocus /></div>
+      <div class="input-label">Columns <small class="text-muted">(an "id" column is added automatically)</small></div>
+      <div data-el="cols"></div>
+      <button class="btn btn-ghost btn-sm" data-act="add-col">+ Add column</button>
+      <div class="modal-actions"><button class="btn btn-secondary" data-act="cancel">Cancel</button><button class="btn btn-primary" data-act="create">Create table</button></div>`, (c, close) => {
+      const drawCols = () => {
+        const list = c.querySelector('[data-el="cols"]');
+        list.innerHTML = columns.map((col, i) => `
+          <div class="flex items-center gap-sm mb-sm">
+            <input class="input input-code" value="${escapeHtml(col.name)}" placeholder="column_name" data-i="${i}" data-f="name" />
+            <select class="input" data-i="${i}" data-f="type" style="width:140px">${["TEXT", "INTEGER", "REAL"].map((t) => `<option ${col.type === t ? "selected" : ""}>${t}</option>`).join("")}</select>
+            <button class="icon-btn danger" data-del="${i}">${icon("x", 14)}</button>
+          </div>`).join("");
+        list.querySelectorAll("[data-f]").forEach((inp) => { inp.oninput = inp.onchange = () => { columns[inp.dataset.i][inp.dataset.f] = inp.value; }; });
+        list.querySelectorAll("[data-del]").forEach((b) => { b.onclick = () => { columns.splice(Number(b.dataset.del), 1); drawCols(); }; });
+      };
+      drawCols();
+      c.querySelector('[data-act="add-col"]').onclick = () => { columns.push({ name: "", type: "TEXT" }); drawCols(); };
+      c.querySelector('[data-act="cancel"]').onclick = close;
+      c.querySelector('[data-act="create"]').onclick = async () => {
+        const name = c.querySelector('[data-el="name"]').value.trim();
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return showToast("Use letters, numbers and _ for the table name", "warning");
+        const valid = columns.filter((col) => col.name.trim());
+        if (!valid.length) return showToast("Add at least one column", "warning");
+        try {
+          await window.api.db.init(pid, [{ name, columns: valid }]);
+          current = name;
+          close();
+          loadTables();
+          showToast("Table created", "success");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      };
+    }, { size: "md" });
+  };
 
-        showModal(`
-      <h2 class="modal-title">Add Table</h2>
-      <div class="input-group">
-        <label class="input-label">Table Name</label>
-        <input class="input" id="table-name" placeholder="my_table" />
-      </div>
-      <div class="section-title mt-md">Columns</div>
-      <div id="table-cols"></div>
-      <button class="btn btn-ghost btn-sm mt-sm" id="add-col-btn">+ Add Column</button>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="tbl-cancel">Cancel</button>
-        <button class="btn btn-primary" id="tbl-create">Create Table</button>
-      </div>
-    `, (container) => {
-            function renderCols() {
-                const list = container.querySelector("#table-cols");
-                list.innerHTML = columns.map((c, i) => `
-          <div class="flex items-center gap-sm mb-md">
-            <input class="input" value="${c.name}" placeholder="column_name" data-i="${i}" data-f="name" style="flex:1" />
-            <select class="input" data-i="${i}" data-f="type" style="width:120px">
-              <option value="TEXT" ${c.type === "TEXT" ? "selected" : ""}>Text</option>
-              <option value="INTEGER" ${c.type === "INTEGER" ? "selected" : ""}>Integer</option>
-              <option value="REAL" ${c.type === "REAL" ? "selected" : ""}>Real</option>
-            </select>
-            <button class="btn btn-danger btn-sm col-del" data-i="${i}">×</button>
-          </div>
-        `).join("");
-                list.querySelectorAll("input, select").forEach((inp) => {
-                    if (inp.dataset.f) inp.onchange = () => { columns[inp.dataset.i][inp.dataset.f] = inp.value; };
-                });
-                list.querySelectorAll(".col-del").forEach((btn) => {
-                    btn.onclick = () => { columns.splice(parseInt(btn.dataset.i), 1); renderCols(); };
-                });
-            }
-            renderCols();
-
-            container.querySelector("#add-col-btn").onclick = () => { columns.push({ name: "", type: "TEXT" }); renderCols(); };
-            container.querySelector("#tbl-cancel").onclick = hideModal;
-            container.querySelector("#tbl-create").onclick = async () => {
-                const name = container.querySelector("#table-name").value.trim();
-                if (!name) { showToast("Enter a table name", "warning"); return; }
-                const validCols = columns.filter((c) => c.name.trim());
-                if (validCols.length === 0) { showToast("Add at least one column", "warning"); return; }
-                await window.api.db.init(AppState.currentProject.id, [{ name, columns: validCols }]);
-                hideModal();
-                loadTables();
-                showToast("Table created", "success");
-            };
-        });
-    }
+  loadTables();
 }

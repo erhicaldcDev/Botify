@@ -1,76 +1,103 @@
-function renderPlugins(el) {
-    el.innerHTML = `
+/* Plugins: enable plugins per project and see what they add. */
+
+/** Load visual blocks contributed by the plugins enabled in the current project. */
+async function refreshPluginBlocks() {
+  const p = AppState.currentProject;
+  if (!p) { AppState.pluginBlocks = []; return; }
+  try {
+    const plugins = await window.api.plugins.list();
+    const enabled = new Set(p.plugins || []);
+    AppState.pluginBlocks = plugins.filter((pl) => enabled.has(pl.id) && pl.enabled && !pl.error).flatMap((pl) => pl.blocks || []);
+  } catch {
+    AppState.pluginBlocks = [];
+  }
+}
+window.refreshPluginBlocks = refreshPluginBlocks;
+
+async function renderPlugins(el) {
+  const p = AppState.currentProject;
+  el.innerHTML = `
     <div class="page-header">
-      <div><h1 class="page-title">Plugins</h1><p class="page-subtitle">Extend your bot maker</p></div>
+      <div>
+        <h1 class="page-title">Plugins</h1>
+        <p class="page-subtitle">${p ? `Turn on ready-made features for <b>${escapeHtml(p.name)}</b>. Plugins add commands, events and new blocks.` : "Open a project to enable plugins for it."}</p>
+      </div>
       <div class="flex gap-sm">
-        <button class="btn btn-secondary" id="plg-reload">Reload</button>
-        <button class="btn btn-secondary" id="plg-open-dir">Open Folder</button>
+        <button class="btn btn-secondary" data-act="reload">${icon("restart", 14)} Reload</button>
+        <button class="btn btn-secondary" data-act="folder">${icon("folder", 14)} Plugins folder</button>
       </div>
     </div>
-    <div id="plugins-list"></div>
-  `;
+    ${p && p.engine !== "node" ? `<div class="notice notice-warn">${icon("alert", 16)} Plugins currently only work with the Node.js engine. They will be skipped when generating ${escapeHtml(p.engine)} code.</div>` : ""}
+    <div class="toolbar-row">
+      <div class="search-box">${icon("search", 14)}<input class="input" data-el="search" placeholder="Search plugins..." /></div>
+    </div>
+    <div class="plugin-grid" data-el="list"><div class="text-muted">Loading...</div></div>`;
 
-    loadPlugins();
+  el.querySelector('[data-act="reload"]').onclick = async () => {
+    await window.api.plugins.reload();
+    await refreshPluginBlocks();
+    draw();
+    showToast("Plugins reloaded", "info");
+  };
+  el.querySelector('[data-act="folder"]').onclick = async () => {
+    const paths = await window.api.app.getPath();
+    window.api.shell.openPath(paths.plugins).catch((e) => showToast(e.message, "error"));
+  };
 
-    el.querySelector("#plg-reload").onclick = async () => {
-        await window.api.plugins.reload();
-        loadPlugins();
-        showToast("Plugins reloaded", "info");
-    };
+  let plugins = [];
+  const list = el.querySelector('[data-el="list"]');
+  const search = el.querySelector('[data-el="search"]');
+  search.oninput = debounce(() => draw(false), 120);
 
-    el.querySelector("#plg-open-dir").onclick = async () => {
-        const paths = await window.api.app.getPath();
-        await window.api.shell.openPath(paths.plugins);
-    };
-
-    async function loadPlugins() {
-        const plugins = await window.api.plugins.list();
-        const list = el.querySelector("#plugins-list");
-
-        if (plugins.length === 0) {
-            list.innerHTML = `
-        <div class="empty-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v6m0 8v6M2 12h6m8 0h6"/><circle cx="12" cy="12" r="3"/></svg>
-          <div class="empty-state-title">No plugins installed</div>
-          <div class="empty-state-text">Place plugin folders with manifest.json in the plugins directory</div>
-        </div>
-      `;
-            return;
-        }
-
-        list.innerHTML = `${plugins.map((p) => `
-      <div class="plugin-card">
-        <div class="plugin-header">
-           <div class="plugin-name">${p.name}${p.error ? ' <span style="color:var(--danger)">(error)</span>' : ""}</div>
-           <span class="tag tag-${p.type || 'js'}">${(p.type || 'js').toUpperCase()}</span>
-        </div>
-        <div class="plugin-desc">${p.description}</div>
-        <div class="plugin-meta" style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; margin-top:10px;">
-            <span>v${p.version}</span>
-            <span>by ${p.author}</span>
-        </div>
-        <div class="plugin-footer">
-          <div style="font-size:12px; font-weight:600; color:${p.enabled ? 'var(--success)' : 'var(--text-muted)'}">
-            ${p.enabled ? "ACTIVE" : "DISABLED"}
-          </div>
-          <div class="switchbox ${p.enabled ? "active" : ""}" data-id="${p.id}" id="plg-toggle-${p.id}"></div>
-        </div>
-      </div>
-    `).join("")}`;
-
-        list.querySelectorAll(".switchbox").forEach((toggle) => {
-            toggle.onclick = async () => {
-                const newState = await window.api.plugins.toggle(toggle.dataset.id);
-                toggle.classList.toggle("active", newState);
-                
-                const statusEl = toggle.parentElement.querySelector("div:first-child");
-                if (statusEl) {
-                  statusEl.textContent = newState ? "ACTIVE" : "DISABLED";
-                  statusEl.style.color = newState ? 'var(--success)' : 'var(--text-muted)';
-                }
-                
-                showToast(`Plugin ${newState ? "enabled" : "disabled"}`, "info");
-            };
-        });
+  async function draw(reload = true) {
+    if (reload) plugins = await window.api.plugins.list();
+    const q = search.value.trim().toLowerCase();
+    const enabled = new Set((p && p.plugins) || []);
+    const shown = plugins.filter((pl) => !q || pl.name.toLowerCase().includes(q) || (pl.description || "").toLowerCase().includes(q));
+    if (!shown.length) {
+      list.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No plugins found</div><div class="empty-state-text">Put plugin folders (with manifest.json) in the plugins folder.</div></div>`;
+      return;
     }
+    list.innerHTML = shown.map((pl) => {
+      const on = enabled.has(pl.id);
+      const cmdNames = (pl.commands || []).map((c) => "/" + c.name);
+      const conflicts = p ? cmdNames.filter((n) => (p.commands || []).some((c) => "/" + c.name === n)) : [];
+      return `
+      <div class="plugin-card${on ? " active" : ""}${pl.error ? " error" : ""}">
+        <div class="plugin-header">
+          <div>
+            <div class="plugin-name">${escapeHtml(pl.name)}</div>
+            <div class="plugin-meta">v${escapeHtml(pl.version)} • by ${escapeHtml(pl.author)}</div>
+          </div>
+          ${p ? `<div class="toggle ${on ? "active" : ""}" data-toggle="${escapeHtml(pl.id)}" ${pl.error || !pl.enabled ? 'style="opacity:.4;pointer-events:none"' : ""}></div>` : ""}
+        </div>
+        <div class="plugin-desc">${escapeHtml(pl.description || "")}</div>
+        ${pl.error ? `<div class="notice notice-err notice-sm">${escapeHtml(pl.error)}</div>` : ""}
+        <div class="plugin-provides">
+          ${cmdNames.length ? `<div><span class="provides-label">Commands</span>${cmdNames.slice(0, 8).map((n) => `<code class="chip">${escapeHtml(n)}</code>`).join("")}${cmdNames.length > 8 ? `<span class="text-muted text-xs">+${cmdNames.length - 8}</span>` : ""}</div>` : ""}
+          ${(pl.blocks || []).length ? `<div><span class="provides-label">Blocks</span>${pl.blocks.map((b) => `<span class="chip">${escapeHtml(b.icon || "")} ${escapeHtml(b.label)}</span>`).join("")}</div>` : ""}
+          ${(pl.events || []).length ? `<div><span class="provides-label">Events</span>${pl.events.map((e) => `<code class="chip chip-muted">${escapeHtml(e)}</code>`).join("")}</div>` : ""}
+          ${(pl.hooks || []).length ? `<div><span class="provides-label">Hooks</span>${pl.hooks.map((h) => `<code class="chip chip-muted">${escapeHtml(h)}</code>`).join("")}</div>` : ""}
+          ${Object.keys(pl.dependencies || {}).length ? `<div><span class="provides-label">Installs</span>${Object.keys(pl.dependencies).map((d) => `<code class="chip chip-muted">${escapeHtml(d)}</code>`).join("")}</div>` : ""}
+        </div>
+        ${conflicts.length ? `<div class="text-xs text-warn">⚠ ${escapeHtml(conflicts.join(", "))} already exist in your project - your version wins.</div>` : ""}
+      </div>`;
+    }).join("");
+
+    list.querySelectorAll("[data-toggle]").forEach((t) => {
+      t.onclick = async () => {
+        const id = t.dataset.toggle;
+        const set = new Set(p.plugins || []);
+        if (set.has(id)) set.delete(id);
+        else set.add(id);
+        p.plugins = [...set];
+        await saveProject();
+        await refreshPluginBlocks();
+        draw(false);
+        const pl = plugins.find((x) => x.id === id);
+        showToast(`${pl.name} ${set.has(id) ? "enabled" : "disabled"} - rebuild the bot to apply`, "info");
+      };
+    });
+  }
+  draw();
 }

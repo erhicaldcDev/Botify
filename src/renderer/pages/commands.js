@@ -1,74 +1,183 @@
-const LOGIC_BLOCKS = [
-  { type: "send_message", label: "Send Message", icon: "💬" },
-  { type: "reply", label: "Reply", icon: "↩️" },
-  { type: "add_role", label: "Add Role", icon: "🛡️" },
-  { type: "remove_role", label: "Remove Role", icon: "🚫" },
-  { type: "kick_member", label: "Kick Member", icon: "👢" },
-  { type: "ban_member", label: "Ban Member", icon: "🔨" },
-  { type: "create_embed", label: "Create Embed", icon: "📋" },
-  { type: "if_condition", label: "If Condition", icon: "❓" },
-  { type: "set_variable", label: "Variable", icon: "📦" },
-  { type: "mention_user", label: "Mention User", icon: "@" },
-  { type: "mention_role", label: "Mention Role", icon: "🏷️" },
-  { type: "mention_channel", label: "Mention Channel", icon: "#" },
-  { type: "set_status", label: "Set Status", icon: "🎭" },
-  { type: "api_request", label: "API Request", icon: "🌐" },
-  { type: "db_read", label: "DB Read", icon: "📖" },
-  { type: "db_write", label: "DB Write", icon: "✏️" },
-  { type: "check_permission", label: "Check Permission", icon: "🔒" },
-  { type: "has_role", label: "Has Role", icon: "👤" },
-  { type: "cooldown", label: "User Cooldown", icon: "⏳" },
-  { type: "get_user_info", label: "Get Member Info", icon: "🆔" },
-  { type: "delete_message", label: "Delete Message", icon: "🗑️" },
-  { type: "send_dm", label: "Send DM", icon: "📩" },
-  { type: "add_reaction", label: "Add Reaction", icon: "😀" },
-  { type: "random_chance", label: "Random Chance", icon: "🎲" },
+/* Commands page: list + full-screen visual flow editor. */
+
+const COMMAND_TEMPLATES = [
+  { id: "blank", icon: "📄", name: "Blank command", desc: "Start with an empty flow", cmd: { name: "", description: "", actions: [] } },
+  {
+    id: "ping", icon: "🏓", name: "Ping", desc: "Simple reply", cmd: { name: "ping", description: "Check if the bot is alive", actions: [{ type: "reply", content: "🏓 Pong, {user}!" }] },
+  },
+  {
+    id: "coinflip", icon: "🪙", name: "Coin flip", desc: "Random choice + embed",
+    cmd: {
+      name: "coinflip", description: "Flip a coin", actions: [
+        { type: "random_choice", choices: "Heads\nTails", saveTo: "side" },
+        { type: "create_embed", content: "", embed: { title: "🪙 Coin flip", description: "{user} flipped **{side}**!", color: "#faa61a", fields: [] } },
+      ],
+    },
+  },
+  {
+    id: "poll", icon: "📊", name: "Yes/No poll", desc: "Buttons + branching",
+    cmd: {
+      name: "poll", description: "Ask a yes/no question", arguments: [{ name: "question", type: "string", description: "What to ask", required: true }], actions: [
+        { type: "send_buttons", content: "📊 **{question}**", saveTo: "vote", timeout: 60, onlyAuthor: false, buttons: [{ label: "Yes", id: "yes", style: "3", emoji: "👍", url: "" }, { label: "No", id: "no", style: "4", emoji: "👎", url: "" }] },
+        { type: "if_condition", left: "{vote}", operator: "==", right: "timeout", condition: "", then: [{ type: "reply", content: "⌛ Nobody voted in time." }], else: [{ type: "reply", content: "{user} voted **{vote}**!" }] },
+      ],
+    },
+  },
+  {
+    id: "feedback", icon: "📝", name: "Modal form", desc: "Pop-up form with inputs",
+    cmd: {
+      name: "apply", description: "Fill in an application form", actions: [
+        { type: "show_modal", title: "Staff application", saveTo: "form", timeout: 300, inputs: [
+          { id: "age", label: "How old are you?", style: "short", placeholder: "18", required: true, minLength: "", maxLength: "3", value: "" },
+          { id: "why", label: "Why do you want to join?", style: "paragraph", placeholder: "Tell us about yourself", required: true, minLength: "20", maxLength: "1000", value: "" },
+        ] },
+        { type: "create_embed", content: "", ephemeral: true, embed: { title: "✅ Application received", description: "Thanks {user}! We'll review it soon.", color: "#3ba55c", fields: [{ name: "Age", value: "{form.age}", inline: true }, { name: "Motivation", value: "{form.why}", inline: false }] } },
+      ],
+    },
+  },
+  {
+    id: "roles", icon: "🎭", name: "Role picker", desc: "Select menu → add role",
+    cmd: {
+      name: "roles", description: "Pick a role", actions: [
+        { type: "send_select_menu", content: "Choose your role:", placeholder: "Select a role...", minValues: 1, maxValues: 1, timeout: 60, saveTo: "picked", options: [{ label: "Gamer", value: "ROLE_ID_1", description: "Get pinged for game nights", emoji: "🎮" }, { label: "Artist", value: "ROLE_ID_2", description: "Share your art", emoji: "🎨" }] },
+        { type: "add_role", roleId: "{picked}", target: "" },
+        { type: "reply", content: "Done! You now have <@&{picked}>.", ephemeral: true },
+      ],
+    },
+  },
+  {
+    id: "kick", icon: "👢", name: "Moderation: kick", desc: "Permission check + kick + log",
+    cmd: {
+      name: "kick", description: "Kick a member", permissions: ["KickMembers"], arguments: [{ name: "member", type: "user", description: "Who to kick", required: true }, { name: "reason", type: "string", description: "Why", required: false }], actions: [
+        { type: "kick_member", target: "{member}", reason: "{reason}" },
+        { type: "create_embed", content: "", embed: { title: "👢 Member kicked", description: "{member} was kicked by {user}.", color: "#ed4245", fields: [{ name: "Reason", value: "{reason}", inline: false }], timestamp: true } },
+      ],
+    },
+  },
+  {
+    id: "8ball", icon: "🎱", name: "Magic 8-ball", desc: "Random answer",
+    cmd: {
+      name: "8ball", description: "Ask the magic 8-ball", arguments: [{ name: "question", type: "string", description: "Your question", required: true }], actions: [
+        { type: "random_choice", choices: "Yes!\nNo.\nMaybe...\nAsk again later\nDefinitely\nI doubt it", saveTo: "answer" },
+        { type: "create_embed", content: "", embed: { title: "🎱 Magic 8-Ball", description: "**Q:** {question}\n**A:** {answer}", color: "#2b2d31", fields: [] } },
+      ],
+    },
+  },
 ];
 
+const ARG_TYPES = [
+  { value: "string", label: "Text" }, { value: "integer", label: "Whole number" }, { value: "number", label: "Decimal number" },
+  { value: "boolean", label: "True / False" }, { value: "user", label: "User / member" }, { value: "channel", label: "Channel" },
+  { value: "role", label: "Role" }, { value: "attachment", label: "File attachment" },
+];
+
+function countBlocks(actions) {
+  let n = 0;
+  (actions || []).forEach((a) => {
+    n++;
+    ["then", "else", "body"].forEach((k) => { n += countBlocks(a[k]); });
+  });
+  return n;
+}
+
 function renderCommands(el) {
-  if (!AppState.currentProject) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-state-title">No project selected</div></div>';
-    return;
-  }
-  const commands = AppState.currentProject.commands || [];
+  if (!AppState.currentProject) return noProjectState(el, "the command builder");
+  const p = AppState.currentProject;
+  const commands = p.commands || [];
+  const q = (el.dataset.filter || "").toLowerCase();
+  const filtered = commands.map((c, i) => ({ c, i })).filter(({ c }) => !q || c.name.toLowerCase().includes(q) || (c.description || "").toLowerCase().includes(q));
+
   el.innerHTML = `
     <div class="page-header">
-      <div><h1 class="page-title">Commands</h1><p class="page-subtitle">Visual command builder</p></div>
-      <button class="btn btn-primary" id="add-cmd-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add Command
-      </button>
+      <div>
+        <h1 class="page-title">Commands</h1>
+        <p class="page-subtitle">Build slash & prefix commands visually with blocks, buttons, menus and modals.</p>
+      </div>
+      <div class="flex gap-sm">
+        <button class="btn btn-primary" data-act="add">${icon("plus", 16)} New command</button>
+      </div>
     </div>
-    <div class="command-list" id="cmd-list">
-      ${commands.length === 0 ? '<div class="empty-state"><div class="empty-state-title">No commands</div><div class="empty-state-text">Add slash or prefix commands</div></div>' :
-      commands.map((cmd, i) => `
-        <div class="command-item" data-index="${i}">
-          <div class="command-info">
-            <span class="tag ${cmd.type === "slash" ? "tag-slash" : "tag-prefix"}">${cmd.type}</span>
-            <div>
-              <div class="command-name">${cmd.type === "slash" ? "/" : AppState.currentProject.prefix}${cmd.name}</div>
-              <div class="command-desc">${cmd.description || "No description"}</div>
-            </div>
+    ${commands.length ? `
+    <div class="toolbar-row">
+      <div class="search-box">${icon("search", 14)}<input class="input" placeholder="Search commands..." data-el="search" value="${escapeHtml(el.dataset.filter || "")}" /></div>
+      <span class="text-muted text-sm">${commands.length} command${commands.length === 1 ? "" : "s"}</span>
+    </div>` : ""}
+    <div class="cmd-grid">
+      ${commands.length === 0 ? `
+        <div class="empty-state empty-state-lg" style="grid-column:1/-1">
+          <div class="empty-state-emoji">⚡</div>
+          <div class="empty-state-title">No commands yet</div>
+          <div class="empty-state-text">Create your first command from a template - no coding needed.</div>
+          <button class="btn btn-primary mt-md" data-act="add">${icon("plus", 16)} New command</button>
+        </div>` :
+      filtered.map(({ c, i }) => {
+        const prefixChar = c.type === "prefix" ? p.prefix : "/";
+        const blocks = countBlocks(c.actions);
+        return `
+        <div class="cmd-card${c.enabled === false ? " disabled" : ""}" data-index="${i}">
+          <div class="cmd-card-top">
+            <div class="cmd-card-name"><span class="cmd-prefix">${escapeHtml(c.type === "both" ? "/" : prefixChar)}</span>${escapeHtml(c.name)}</div>
+            <div class="toggle toggle-sm ${c.enabled === false ? "" : "active"}" data-toggle="${i}" title="Enable / disable"></div>
           </div>
-          <div class="command-actions">
-            <button class="btn btn-secondary btn-sm cmd-edit" data-index="${i}">Edit</button>
-            <button class="btn btn-danger btn-sm cmd-delete" data-index="${i}">Delete</button>
+          <div class="cmd-card-desc">${escapeHtml(c.description || "No description")}</div>
+          <div class="cmd-card-meta">
+            <span class="tag ${c.type === "prefix" ? "tag-prefix" : "tag-slash"}">${c.type === "both" ? "slash + prefix" : escapeHtml(c.type)}</span>
+            <span class="meta-item">🧩 ${blocks} block${blocks === 1 ? "" : "s"}</span>
+            ${(c.arguments || []).length ? `<span class="meta-item">⌨️ ${(c.arguments || []).length} arg${(c.arguments || []).length === 1 ? "" : "s"}</span>` : ""}
+            ${c.cooldown ? `<span class="meta-item">⏱️ ${c.cooldown}s</span>` : ""}
+            ${(c.permissions || []).length ? `<span class="meta-item">🔒</span>` : ""}
           </div>
-        </div>
-      `).join("")}
-    </div>
-  `;
+          <div class="cmd-card-actions">
+            <button class="btn btn-secondary btn-sm" data-edit="${i}">${icon("edit", 14)} Edit flow</button>
+            <button class="icon-btn" data-dup="${i}" title="Duplicate">${icon("copy", 15)}</button>
+            <button class="icon-btn danger" data-del="${i}" title="Delete">${icon("trash", 15)}</button>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
 
-  el.querySelector("#add-cmd-btn").onclick = () => showCommandEditor();
-
-  el.querySelectorAll(".cmd-edit").forEach((btn) => {
-    btn.onclick = (e) => { e.stopPropagation(); showCommandEditor(parseInt(btn.dataset.index)); };
+  el.querySelectorAll('[data-act="add"]').forEach((b) => { b.onclick = () => showCommandTemplates(); });
+  const search = el.querySelector('[data-el="search"]');
+  if (search) {
+    search.oninput = debounce(() => {
+      el.dataset.filter = search.value;
+      renderCommands(el);
+      const s = el.querySelector('[data-el="search"]');
+      s.focus();
+      s.selectionStart = s.selectionEnd = s.value.length;
+    }, 150);
+  }
+  el.querySelectorAll("[data-edit]").forEach((b) => { b.onclick = () => showCommandEditor(Number(b.dataset.edit)); });
+  el.querySelectorAll(".cmd-card").forEach((card) => {
+    card.ondblclick = (e) => { if (!e.target.closest("button, .toggle")) showCommandEditor(Number(card.dataset.index)); };
   });
-
-  el.querySelectorAll(".cmd-delete").forEach((btn) => {
-    btn.onclick = async (e) => {
-      e.stopPropagation();
-      AppState.currentProject.commands.splice(parseInt(btn.dataset.index), 1);
+  el.querySelectorAll("[data-toggle]").forEach((t) => {
+    t.onclick = async () => {
+      const c = p.commands[Number(t.dataset.toggle)];
+      c.enabled = c.enabled === false;
+      await saveProject();
+      renderCommands(el);
+    };
+  });
+  el.querySelectorAll("[data-dup]").forEach((b) => {
+    b.onclick = async () => {
+      const src = p.commands[Number(b.dataset.dup)];
+      const copy = clone(src);
+      copy.id = uid();
+      let n = 2;
+      while (p.commands.some((c) => c.name === `${src.name}-${n}`)) n++;
+      copy.name = `${src.name}-${n}`.slice(0, 32);
+      p.commands.splice(Number(b.dataset.dup) + 1, 0, copy);
+      await saveProject();
+      renderCommands(el);
+      showToast(`Duplicated as ${copy.name}`, "success");
+    };
+  });
+  el.querySelectorAll("[data-del]").forEach((b) => {
+    b.onclick = async () => {
+      const c = p.commands[Number(b.dataset.del)];
+      if (!(await confirmDialog({ title: `Delete "${c.name}"?`, message: "This cannot be undone.", confirmText: "Delete", danger: true }))) return;
+      p.commands.splice(Number(b.dataset.del), 1);
       await saveProject();
       renderCommands(el);
       showToast("Command deleted", "success");
@@ -76,543 +185,287 @@ function renderCommands(el) {
   });
 }
 
-function showCommandEditor(editIndex) {
-  const isEdit = editIndex !== undefined;
-  const cmd = isEdit ? JSON.parse(JSON.stringify(AppState.currentProject.commands[editIndex])) : {
-    type: "slash", name: "", description: "", permissions: [], cooldown: 0, arguments: [], actions: [],
-  };
-  if (!cmd.actions) cmd.actions = [];
-  if (!cmd.arguments) cmd.arguments = [];
-
-  
-  let nodes = [];
-  let wires = [];
-  let canvasOffset = { x: 0, y: 0 };
-  let isDraggingCanvas = false;
-  let activeWire = null;
-
-  
-  function deserializeActions(actions, startX = 50, startY = 100) {
-    const createdNodes = [];
-
-    function processList(actionList, x, y) {
-      let lastNode = null;
-      let firstNodeInList = null;
-      actionList.forEach((action, i) => {
-        const actionData = { ...action };
-        
-        if (action.type === "if_condition") {
-          delete actionData.then;
-          delete actionData.else;
-        }
-        const node = {
-          id: crypto.randomUUID(),
-          type: action.type,
-          data: actionData,
-          x: x + (i * 280),
-          y: y,
-          inputs: ["in"],
-          outputs: action.type === "if_condition" ? ["then", "else"] : ["next"]
-        };
-        createdNodes.push(node);
-        if (i === 0) firstNodeInList = node;
-        if (lastNode) {
-          wires.push({ from: lastNode.id, fromPin: "next", to: node.id, toPin: "in" });
-        }
-        lastNode = node;
-
-        if (action.type === "if_condition") {
-          if (action.then && action.then.length > 0) {
-            const firstThen = processList(action.then, x + (i * 280) + 280, y - 150);
-            if (firstThen) wires.push({ from: node.id, fromPin: "then", to: firstThen.id, toPin: "in" });
-          }
-          if (action.else && action.else.length > 0) {
-            const firstElse = processList(action.else, x + (i * 280) + 280, y + 150);
-            if (firstElse) wires.push({ from: node.id, fromPin: "else", to: firstElse.id, toPin: "in" });
-          }
-        }
-      });
-      return firstNodeInList;
-    }
-
-    processList(actions, startX, startY);
-    nodes = createdNodes;
-  }
-
-  deserializeActions(cmd.actions);
-
+function showCommandTemplates() {
   showModal(`
-    <style>
-      .modal-container { max-width: 95vw !important; width: 95vw; height: 90vh; display: flex; flex-direction: column; padding: 0 !important; overflow: hidden !important; }
-      .bvs-header { padding: 15px 25px; border-bottom: 1px solid var(--border-medium); display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); }
-      .bvs-split { flex: 1; display: flex; overflow: hidden; }
-      .bvs-sidebar { width: 300px; padding: 20px; border-right: 1px solid var(--border-medium); overflow-y: auto; background: var(--bg-secondary); }
-      .bvs-workspace { flex: 1; position: relative; overflow: hidden; background: #0b0c11; }
-    </style>
-    <div class="bvs-header">
-      <div class="flex items-center gap-md">
-        <h2 class="modal-title" style="margin:0">${isEdit ? "Edit" : "New"} Command (BVS Editor)</h2>
-        <div class="tag tag-slash">BVS Visual Mode</div>
-      </div>
-      <div class="flex gap-sm">
-        <button class="btn btn-secondary" id="cmd-cancel">Cancel</button>
-        <button class="btn btn-primary" id="cmd-save">Compile & Save</button>
-      </div>
-    </div>
-    <div class="bvs-split">
-      <div class="bvs-sidebar">
-        <div class="input-group">
-          <label class="input-label">Command Name</label>
-          <input class="input" id="cmd-name" value="${cmd.name}" placeholder="e.g. kick-member" />
-        </div>
-        <div class="grid-2">
-            <div class="input-group">
-                <label class="input-label">Type</label>
-                <select class="input" id="cmd-type"><option value="slash" ${cmd.type === "slash" ? "selected" : ""}>Slash</option><option value="prefix" ${cmd.type === "prefix" ? "selected" : ""}>Prefix</option></select>
-            </div>
-            <div class="input-group">
-                <label class="input-label">Cooldown</label>
-                <input class="input" type="number" id="cmd-cooldown" value="${cmd.cooldown || 0}" />
-            </div>
-        </div>
-        <div class="section mt-md">
-          <div class="section-title">Logic Palette (Drag nodes)</div>
-          <div class="logic-blocks" style="border:none; padding:0; background:none" id="logic-palette">
-            ${LOGIC_BLOCKS.map(b => `<div class="logic-block" draggable="true" data-type="${b.type}"><span class="logic-block-icon">${b.icon}</span>${b.label}</div>`).join("")}
-          </div>
-        </div>
-        <div class="section mt-md">
-           <div class="section-title">Arguments</div>
-           <div id="cmd-args-list"></div>
-           <button class="btn btn-ghost btn-sm mt-sm" id="add-arg-btn" style="width:100%">+ Add Argument</button>
-        </div>
-      </div>
-      <div class="bvs-workspace" id="bvs-workspace">
-        <div class="bvs-canvas" id="bvs-canvas">
-          <svg class="bvs-connections" id="bvs-svg"></svg>
-          <div id="bvs-nodes-container"></div>
-        </div>
-        <div class="bvs-overlay">
-          <div class="status-indicator"><div class="status-dot running"></div> Visual Logic Active</div>
-        </div>
-      </div>
-    </div>
-  `, (container) => {
-    const canvas = container.querySelector("#bvs-canvas");
-    const svg = container.querySelector("#bvs-svg");
-    const nodesContainer = container.querySelector("#bvs-nodes-container");
-    const argsList = container.querySelector("#cmd-args-list");
-    let args = [...cmd.arguments];
-
-    
-    const bvsAbort = new AbortController();
-
-    function renderArgs() {
-      argsList.innerHTML = args.map((a, i) => `
-                <div class="flex items-center gap-sm mb-md card" style="padding:10px; border-radius:8px">
-                    <input class="input" value="${a.name}" placeholder="name" data-i="${i}" data-f="name" style="flex:1; padding:5px 8px; font-size:12px"/>
-                    <button class="btn btn-danger btn-sm arg-remove" data-i="${i}" style="padding:4px 8px">×</button>
-                </div>
-            `).join("");
-      argsList.querySelectorAll("input").forEach(inp => {
-        inp.onchange = () => { args[inp.dataset.i][inp.dataset.f] = inp.value; };
-      });
-      argsList.querySelectorAll(".arg-remove").forEach(btn => {
-        btn.onclick = () => { args.splice(parseInt(btn.dataset.i), 1); renderArgs(); };
-      });
-    }
-    renderArgs();
-
-    container.querySelector("#add-arg-btn").onclick = () => {
-      args.push({ name: "arg" + args.length, type: "string" });
-      renderArgs();
-    };
-
-    
-    container.querySelectorAll("#logic-palette .logic-block").forEach(block => {
-      block.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/plain", block.dataset.type);
-        e.dataTransfer.effectAllowed = "copy";
-      });
+    <div class="modal-head"><h2 class="modal-title">New command</h2></div>
+    <p class="dialog-text">Pick a starting point - you can change everything afterwards.</p>
+    <div class="template-grid">
+      ${COMMAND_TEMPLATES.map((t) => `
+        <button class="template-card" data-tpl="${t.id}">
+          <span class="template-icon">${t.icon}</span>
+          <span class="template-name">${escapeHtml(t.name)}</span>
+          <span class="template-desc">${escapeHtml(t.desc)}</span>
+        </button>`).join("")}
+    </div>`, (c, close) => {
+    c.querySelectorAll("[data-tpl]").forEach((b) => {
+      b.onclick = () => {
+        const tpl = COMMAND_TEMPLATES.find((t) => t.id === b.dataset.tpl);
+        close();
+        const cmd = { type: AppState.currentProject.engine === "lua" ? "prefix" : "slash", cooldown: 0, permissions: [], arguments: [], ...clone(tpl.cmd) };
+        let name = cmd.name;
+        let n = 2;
+        while (name && AppState.currentProject.commands.some((x) => x.name === name)) name = `${cmd.name}-${n++}`;
+        cmd.name = name;
+        showCommandEditor(undefined, cmd);
+      };
     });
-
-    function drawWires() {
-      svg.innerHTML = "";
-      wires.forEach(w => {
-        const fromNode = nodes.find(n => n.id === w.from);
-        const toNode = nodes.find(n => n.id === w.to);
-        if (!fromNode || !toNode) return;
-
-        const x1 = fromNode.x + 240;
-        const y1 = fromNode.y + 40 + (fromNode.outputs.indexOf(w.fromPin) * 30);
-        const x2 = toNode.x;
-        const y2 = toNode.y + 40;
-
-        const cp1x = x1 + (x2 - x1) / 2;
-        const cp2x = x1 + (x2 - x1) / 2;
-
-        const pathD = `M ${x1} ${y1} C ${cp1x} ${y1}, ${cp2x} ${y2}, ${x2} ${y2}`;
-
-        const shadow = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        shadow.setAttribute("d", pathD);
-        shadow.setAttribute("class", "bvs-wire-shadow");
-        svg.appendChild(shadow);
-
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        line.setAttribute("d", pathD);
-        line.setAttribute("class", "bvs-wire");
-        svg.appendChild(line);
-      });
-    }
-
-    
-    let draggingNodeState = null;
-
-    
-    window.addEventListener("mousemove", (e) => {
-      if (draggingNodeState) {
-        const { node, nodeEl, startPos } = draggingNodeState;
-        node.x = e.clientX - startPos.x;
-        node.y = e.clientY - startPos.y;
-        nodeEl.style.left = node.x + "px";
-        nodeEl.style.top = node.y + "px";
-        drawWires();
-      }
-    }, { signal: bvsAbort.signal });
-
-    window.addEventListener("mouseup", () => {
-      if (draggingNodeState) {
-        draggingNodeState.nodeEl.style.zIndex = 10;
-        draggingNodeState = null;
-      }
-      activeWire = null;
-    }, { signal: bvsAbort.signal });
-
-    function renderNodes() {
-      nodesContainer.innerHTML = "";
-      nodes.forEach(node => {
-        const block = LOGIC_BLOCKS.find(b => b.type === node.type) || { icon: "⚡", label: node.type };
-        const nodeEl = document.createElement("div");
-        nodeEl.className = `bvs-node bvs-node-color-${node.type === "if_condition" ? "logic" : node.type.includes("variable") ? "var" : "action"}`;
-        nodeEl.style.left = node.x + "px";
-        nodeEl.style.top = node.y + "px";
-        nodeEl.id = `node-${node.id}`;
-
-        nodeEl.innerHTML = `
-                    <div class="bvs-node-header">
-                        <span>${block.icon}</span>
-                        <div class="bvs-node-title">${block.label}</div>
-                    </div>
-                    <div class="bvs-node-content">
-                        <div class="bvs-row">
-                            <div class="bvs-pin-container">
-                                <div class="bvs-pin bvs-pin-exec" data-node="${node.id}" data-pin="in" data-type="input"></div>
-                                <span>In</span>
-                            </div>
-                            <div class="bvs-pin-container">
-                                <span>Out</span>
-                                <div class="bvs-pin bvs-pin-exec" data-node="${node.id}" data-pin="next" data-type="output"></div>
-                            </div>
-                        </div>
-                        ${node.type === "if_condition" ? `
-                            <div class="bvs-row">
-                                <div class="bvs-pin-container"></div>
-                                <div class="bvs-pin-container">
-                                    <span>True</span>
-                                    <div class="bvs-pin bvs-pin-exec" data-node="${node.id}" data-pin="then" data-type="output"></div>
-                                </div>
-                            </div>
-                            <div class="bvs-row">
-                                <div class="bvs-pin-container"></div>
-                                <div class="bvs-pin-container">
-                                    <span>False</span>
-                                    <div class="bvs-pin bvs-pin-exec" data-node="${node.id}" data-pin="else" data-type="output"></div>
-                                </div>
-                            </div>
-                        ` : ""}
-                        <button class="btn btn-ghost btn-sm node-config" style="width:100%; margin-top:5px">Configure</button>
-                        <button class="btn btn-danger btn-sm node-delete" style="width:100%; margin-top:2px; font-size:11px">Remove</button>
-                    </div>
-                `;
-
-        
-        nodeEl.querySelector(".bvs-node-header").onmousedown = (e) => {
-          draggingNodeState = {
-            node,
-            nodeEl,
-            startPos: { x: e.clientX - node.x, y: e.clientY - node.y }
-          };
-          nodeEl.style.zIndex = 1000;
-          e.preventDefault();
-        };
-
-        nodeEl.querySelector(".node-config").onclick = () => configureAction(node);
-        nodeEl.querySelector(".node-delete").onclick = () => {
-          nodes = nodes.filter(n => n.id !== node.id);
-          wires = wires.filter(w => w.from !== node.id && w.to !== node.id);
-          renderNodes();
-        };
-
-        nodesContainer.appendChild(nodeEl);
-      });
-      drawWires();
-      setupPins();
-    }
-
-    function setupPins() {
-      container.querySelectorAll(".bvs-pin").forEach(pin => {
-        pin.onmousedown = (e) => {
-          e.stopPropagation();
-          const nodeId = pin.dataset.node;
-          const pinId = pin.dataset.pin;
-          const type = pin.dataset.type;
-
-          activeWire = { fromNode: nodeId, fromPin: pinId, type: type };
-        };
-
-        pin.onmouseup = (e) => {
-          if (activeWire && activeWire.fromNode !== pin.dataset.node) {
-            if (activeWire.type === "output" && pin.dataset.type === "input") {
-              wires = wires.filter(w => !(w.to === pin.dataset.node && w.toPin === pin.dataset.pin));
-              wires.push({ from: activeWire.fromNode, fromPin: activeWire.fromPin, to: pin.dataset.node, toPin: pin.dataset.pin });
-            } else if (activeWire.type === "input" && pin.dataset.type === "output") {
-              wires = wires.filter(w => !(w.from === pin.dataset.node && w.fromPin === pin.dataset.pin));
-              wires.push({ from: pin.dataset.node, fromPin: pin.dataset.pin, to: activeWire.fromNode, toPin: activeWire.fromPin });
-            }
-            drawWires();
-          }
-          activeWire = null;
-        };
-      });
-    }
-
-    function configureAction(node) {
-      const block = LOGIC_BLOCKS.find(b => b.type === node.type);
-      let fields = getActionFields(node.data);
-
-      
-      const existing = container.querySelector(".bvs-config-overlay");
-      if (existing) existing.remove();
-
-      
-      const overlay = document.createElement("div");
-      overlay.className = "bvs-config-overlay";
-      overlay.style.cssText = "position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:500;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-xl);";
-
-      const panel = document.createElement("div");
-      panel.style.cssText = "background:var(--bg-secondary);border:1px solid var(--border-medium);border-radius:var(--radius-lg);padding:24px;min-width:400px;max-width:520px;max-height:70vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.5);animation:scaleIn 0.2s ease;";
-      panel.innerHTML = `
-        <h2 class="modal-title">Configure: ${block ? block.label : node.type}</h2>
-        <div class="card" style="padding:20px">${fields}</div>
-        <div class="modal-actions">
-            <button class="btn btn-secondary" id="action-conf-cancel">Cancel</button>
-            <button class="btn btn-primary" id="action-conf-save">Apply Settings</button>
-        </div>
-      `;
-      overlay.appendChild(panel);
-
-      
-      const modalContainer = container.closest(".modal-container") || container;
-      modalContainer.style.position = "relative";
-      modalContainer.appendChild(overlay);
-
-      
-      overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) overlay.remove();
-      });
-
-      panel.querySelector("#action-conf-cancel").onclick = () => overlay.remove();
-      panel.querySelector("#action-conf-save").onclick = () => {
-        panel.querySelectorAll("[data-field]").forEach(inp => {
-          const field = inp.dataset.field;
-          if (field.includes('.')) {
-            const [p1, p2] = field.split('.');
-            if (!node.data[p1]) node.data[p1] = {};
-            node.data[p1][p2] = inp.value;
-          } else {
-            node.data[field] = inp.value;
-          }
-        });
-        overlay.remove();
-        showToast("Node settings applied", "success");
-      };
-    }
-
-    
-    canvas.ondragover = (e) => e.preventDefault();
-    canvas.ondrop = (e) => {
-      const type = e.dataTransfer.getData("text/plain");
-      if (type) {
-        const rect = canvas.getBoundingClientRect();
-        const node = {
-          id: crypto.randomUUID(),
-          type: type,
-          data: createDefaultAction(type),
-          x: e.clientX - rect.left - 100,
-          y: e.clientY - rect.top - 20,
-          inputs: ["in"],
-          outputs: type === "if_condition" ? ["then", "else"] : ["next"]
-        };
-        nodes.push(node);
-        renderNodes();
-      }
-    };
-
-    renderNodes();
-
-    container.querySelector("#cmd-cancel").onclick = () => { bvsAbort.abort(); hideModal(); };
-    container.querySelector("#cmd-save").onclick = async () => {
-      const name = container.querySelector("#cmd-name").value.trim().toLowerCase().replace(/\s+/g, "-");
-      if (!name) { showToast("Enter a command name", "warning"); return; }
-
-      
-      
-      const getIncoming = (id) => wires.filter(w => w.to === id);
-      const roots = nodes.filter(n => getIncoming(n.id).length === 0);
-      const root = roots[0] || nodes[0];
-
-      function serialize(nodeId, visited = new Set()) {
-        if (!nodeId || visited.has(nodeId)) return [];
-        visited.add(nodeId);
-        const node = nodes.find(n => n.id === nodeId);
-        if (!node) return [];
-
-        const action = { ...node.data };
-
-        if (node.type === "if_condition") {
-          const thenWire = wires.find(w => w.from === nodeId && w.fromPin === "then");
-          const elseWire = wires.find(w => w.from === nodeId && w.fromPin === "else");
-          action.then = serialize(thenWire ? thenWire.to : null, new Set(visited));
-          action.else = serialize(elseWire ? elseWire.to : null, new Set(visited));
-        }
-
-        const nextWire = wires.find(w => w.from === nodeId && w.fromPin === "next");
-        const nextActions = serialize(nextWire ? nextWire.to : null, visited);
-
-        return [action, ...nextActions];
-      }
-
-      const finalActions = serialize(root ? root.id : null);
-
-      const data = {
-        type: container.querySelector("#cmd-type").value,
-        name,
-        description: "Compiled BVS Logic",
-        cooldown: parseInt(container.querySelector("#cmd-cooldown").value) || 0,
-        permissions: [],
-        arguments: args,
-        actions: finalActions,
-      };
-
-      if (isEdit) AppState.currentProject.commands[editIndex] = data;
-      else AppState.currentProject.commands.push(data);
-
-      await saveProject();
-      bvsAbort.abort();
-      hideModal();
-      renderCommands(document.getElementById("page-commands"));
-      showToast("Success: Visual Logic Compiled", "success");
-    };
-  });
+  }, { size: "lg" });
 }
 
-function createDefaultAction(type) {
-  const defaults = {
-    send_message: { type, content: "Hello!" },
-    reply: { type, content: "Reply!" },
-    add_role: { type, roleId: "" },
-    remove_role: { type, roleId: "" },
-    kick_member: { type, reason: "Kicked" },
-    ban_member: { type, reason: "Banned" },
-    create_embed: { type, embed: { title: "Embed", description: "", color: "#7c6aef", fields: [], footer: "" } },
-    if_condition: { type, condition: "true", then: [], else: [] },
-    set_variable: { type, name: "myVar", value: "" },
-    mention_user: { type, userId: "${interaction.user.id}", saveTo: "mention" },
-    mention_role: { type, roleId: "", saveTo: "mention" },
-    mention_channel: { type, channelId: "${interaction.channel.id}", saveTo: "mention" },
-    set_status: { type, text: "Watching you", statusType: "WATCHING", status: "online" },
-    api_request: { type, url: "https://api.example.com", method: "GET" },
-    db_read: { type, query: "SELECT * FROM data" },
-    db_write: { type, query: "INSERT INTO data (key, value) VALUES (?, ?)", params: [] },
+/**
+ * Generic full-screen flow editor used by commands and events.
+ * opts: { title, icon, tabs: [{id,label,render(el)}], trigger, actions, graph, variables(), onSave(actions, graph) → bool|Promise<bool>, triggerKind }
+ */
+function openFlowEditor(opts) {
+  let editor = null;
+  let dirty = false;
+  const markDirty = () => {
+    dirty = true;
+    const b = document.querySelector(".flow-editor [data-el='dirty']");
+    if (b) b.style.display = "";
   };
-  return defaults[type] || { type };
+  const modal = showModal(`
+    <div class="flow-editor">
+      <div class="flow-head">
+        <button class="icon-btn" data-act="close" title="Close (Esc)">${icon("x", 18)}</button>
+        <div class="flow-title"><span class="flow-title-icon">${escapeHtml(opts.icon || "⚡")}</span><span data-el="title">${escapeHtml(opts.title)}</span><span class="flow-dirty" data-el="dirty" style="display:none" title="Unsaved changes">●</span></div>
+        <div class="tabs" data-el="tabs">
+          <button class="tab active" data-tab="logic">${icon("bolt", 14)} Logic</button>
+          ${(opts.tabs || []).map((t) => `<button class="tab" data-tab="${t.id}">${escapeHtml(t.label)}</button>`).join("")}
+        </div>
+        <div class="flex-1"></div>
+        <button class="btn btn-secondary" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${icon("save", 15)} Save</button>
+      </div>
+      <div class="flow-body">
+        <div class="flow-pane active" data-pane="logic"></div>
+        ${(opts.tabs || []).map((t) => `<div class="flow-pane flow-pane-scroll" data-pane="${t.id}"></div>`).join("")}
+      </div>
+    </div>`, (c) => {
+    editor = BVSEditor.mount(c.querySelector('[data-pane="logic"]'), {
+      graph: opts.graph, actions: opts.actions, trigger: opts.trigger, engine: AppState.currentProject.engine,
+      project: AppState.currentProject, pluginBlocks: AppState.pluginBlocks || [], variables: opts.variables ? opts.variables() : [],
+      commandName: opts.commandName, triggerKind: opts.triggerKind, onChange: markDirty,
+    });
+    (opts.tabs || []).forEach((t) => t.render(c.querySelector(`[data-pane="${t.id}"]`), { markDirty, editor }));
+    c.querySelectorAll("[data-tab]").forEach((tab) => {
+      tab.onclick = () => {
+        c.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("active", x === tab));
+        c.querySelectorAll("[data-pane]").forEach((p) => p.classList.toggle("active", p.dataset.pane === tab.dataset.tab));
+        if (tab.dataset.tab === "logic" && opts.variables) editor.setVariables(opts.variables());
+      };
+    });
+    const tryClose = async () => {
+      if (dirty && !(await confirmDialog({ title: "Discard changes?", message: "You have unsaved changes in this flow.", confirmText: "Discard", danger: true }))) return;
+      dirty = false;
+      modal.close();
+    };
+    c.querySelector('[data-act="close"]').onclick = tryClose;
+    c.querySelector('[data-act="cancel"]').onclick = tryClose;
+    c.querySelector('[data-act="save"]').onclick = async () => {
+      const ok = await opts.onSave(editor.compile(), editor.getGraph(), editor.issues());
+      if (ok) {
+        dirty = false;
+        modal.close();
+      }
+    };
+    c.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        c.querySelector('[data-act="save"]').click();
+      }
+    });
+  }, {
+    size: "full",
+    beforeClose: () => {
+      if (!dirty) return true;
+      confirmDialog({ title: "Discard changes?", message: "You have unsaved changes in this flow.", confirmText: "Discard", danger: true }).then((yes) => {
+        if (yes) { dirty = false; modal.close(); }
+      });
+      return false;
+    },
+    onClose: () => editor && editor.destroy(),
+  });
+  return { setTitle: (t) => { const el = modal.container.querySelector('[data-el="title"]'); if (el) el.textContent = t; }, editor: () => editor };
 }
 
-function getActionFields(action) {
-  switch (action.type) {
-    case "send_message":
-    case "reply":
-      return `<div class="input-group"><label class="input-label">Content</label><textarea class="input" data-field="content">${action.content || ""}</textarea></div>`;
-    case "add_role":
-    case "remove_role":
-      return `<div class="input-group"><label class="input-label">Role ID</label><input class="input" data-field="roleId" value="${action.roleId || ""}" /></div>`;
-    case "kick_member":
-    case "ban_member":
-      return `<div class="input-group"><label class="input-label">Reason</label><input class="input" data-field="reason" value="${action.reason || ""}" /></div>`;
-    case "set_variable":
-      return `<div class="input-group"><label class="input-label">Variable Name</label><input class="input" data-field="name" value="${action.name || ""}" /></div>
-              <div class="input-group"><label class="input-label">Value</label><input class="input" data-field="value" value="${action.value || ""}" /></div>`;
-    case "mention_user":
-      return `<div class="input-group"><label class="input-label">User ID (or use \${...})</label><input class="input" data-field="userId" value="${action.userId || ""}" /></div>
-              <div class="input-group"><label class="input-label">Save To Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "mention"}" /></div>`;
-    case "mention_role":
-      return `<div class="input-group"><label class="input-label">Role ID</label><input class="input" data-field="roleId" value="${action.roleId || ""}" /></div>
-              <div class="input-group"><label class="input-label">Save To Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "mention"}" /></div>`;
-    case "mention_channel":
-      return `<div class="input-group"><label class="input-label">Channel ID</label><input class="input" data-field="channelId" value="${action.channelId || ""}" /></div>
-              <div class="input-group"><label class="input-label">Save To Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "mention"}" /></div>`;
-    case "set_status":
-      return `<div class="input-group"><label class="input-label">Status Text</label><input class="input" data-field="text" value="${action.text || ""}" /></div>
-              <div class="input-group"><label class="input-label">Activity Type</label>
-                <select class="input" data-field="statusType">
-                  <option value="PLAYING" ${action.statusType === "PLAYING" ? "selected" : ""}>Playing</option>
-                  <option value="STREAMING" ${action.statusType === "STREAMING" ? "selected" : ""}>Streaming</option>
-                  <option value="LISTENING" ${action.statusType === "LISTENING" ? "selected" : ""}>Listening</option>
-                  <option value="WATCHING" ${action.statusType === "WATCHING" ? "selected" : ""}>Watching</option>
-                  <option value="COMPETING" ${action.statusType === "COMPETING" ? "selected" : ""}>Competing</option>
-                </select></div>
-              <div class="input-group"><label class="input-label">Status</label>
-                <select class="input" data-field="status">
-                  <option value="online" ${action.status === "online" ? "selected" : ""}>Online</option>
-                  <option value="idle" ${action.status === "idle" ? "selected" : ""}>Idle</option>
-                  <option value="dnd" ${action.status === "dnd" ? "selected" : ""}>DND</option>
-                  <option value="invisible" ${action.status === "invisible" ? "selected" : ""}>Invisible</option>
-                </select></div>`;
-    case "api_request":
-      return `<div class="input-group"><label class="input-label">URL</label><input class="input" data-field="url" value="${action.url || ""}" /></div>
-              <div class="input-group"><label class="input-label">Method</label><select class="input" data-field="method"><option value="GET" ${action.method === "GET" ? "selected" : ""}>GET</option><option value="POST" ${action.method === "POST" ? "selected" : ""}>POST</option></select></div>`;
-    case "db_read":
-    case "db_write":
-      return `<div class="input-group"><label class="input-label">Query</label><input class="input" data-field="query" value="${action.query || ""}" /></div>`;
-    case "if_condition":
-      return `<div class="input-group"><label class="input-label">Condition</label><input class="input" data-field="condition" value="${action.condition || "true"}" /></div>`;
-    case "create_embed":
-      return `<div class="input-group"><label class="input-label">Title</label><input class="input" data-field="embed.title" value="${(action.embed && action.embed.title) || ""}" /></div>
-              <div class="input-group"><label class="input-label">Description</label><textarea class="input" data-field="embed.description">${(action.embed && action.embed.description) || ""}</textarea></div>`;
-    case "check_permission":
-      return `<div class="input-group"><label class="input-label">Permission</label>
-              <select class="input" data-field="permission">
-                <option value="Administrator" ${action.permission === "Administrator" ? "selected" : ""}>Administrator</option>
-                <option value="ManageMessages" ${action.permission === "ManageMessages" ? "selected" : ""}>Manage Messages</option>
-                <option value="BanMembers" ${action.permission === "BanMembers" ? "selected" : ""}>Ban Members</option>
-                <option value="KickMembers" ${action.permission === "KickMembers" ? "selected" : ""}>Kick Members</option>
-                <option value="ModerateMembers" ${action.permission === "ModerateMembers" ? "selected" : ""}>Timeout Members</option>
-              </select></div>`;
-    case "has_role":
-      return `<div class="input-group"><label class="input-label">Role ID</label><input class="input" data-field="roleId" value="${action.roleId || ""}" /></div>`;
-    case "cooldown":
-      return `<div class="input-group"><label class="input-label">Time (seconds)</label><input class="input" type="number" data-field="time" value="${action.time || 5}" /></div>`;
-    case "get_user_info":
-      return `<div class="input-group"><label class="input-label">Store In Variable</label><input class="input" data-field="saveTo" value="${action.saveTo || "userInfo"}" /></div>`;
-    case "send_dm":
-      return `<div class="input-group"><label class="input-label">Content</label><textarea class="input" data-field="content">${action.content || ""}</textarea></div>`;
-    case "add_reaction":
-      return `<div class="input-group"><label class="input-label">Emoji (ID or Unicode)</label><input class="input" data-field="emoji" value="${action.emoji || "✅"}" /></div>`;
-    case "random_chance":
-      return `<div class="input-group"><label class="input-label">Chance Percentage (1-100)</label><input class="input" type="number" data-field="chance" value="${action.chance || 50}" /></div>`;
-    case "delete_message":
-      return `<p class="text-muted">Deletes the trigger message/interaction</p>`;
-    default:
-      return '<p class="text-muted">No configuration available</p>';
-  }
+function showCommandEditor(editIndex, preset) {
+  const project = AppState.currentProject;
+  const isEdit = editIndex !== undefined;
+  const cmd = isEdit ? clone(project.commands[editIndex]) : clone(preset || { type: "slash", name: "", description: "", cooldown: 0, permissions: [], arguments: [], actions: [] });
+  cmd.arguments = cmd.arguments || [];
+  cmd.permissions = cmd.permissions || [];
+  if (project.engine === "lua") cmd.type = "prefix";
+
+  const triggerFor = () => ({
+    label: cmd.type === "prefix" ? `${project.prefix}${cmd.name || "command"}` : `/${cmd.name || "command"}`,
+    sub: cmd.type === "both" ? "Slash + prefix command" : cmd.type === "prefix" ? "Prefix command" : "Slash command",
+    icon: cmd.type === "prefix" ? "⌨️" : "⚡",
+  });
+
+  let flow = null;
+  const settingsTab = {
+    id: "settings",
+    label: "⚙ Settings & arguments",
+    render(el, { markDirty }) {
+      const draw = () => {
+        el.innerHTML = `
+          <div class="settings-layout">
+            <div class="settings-main">
+              <div class="card">
+                <div class="card-title mb-md">Command</div>
+                <div class="grid-2">
+                  <div class="input-group"><label class="input-label">Name</label>
+                    <div class="input-prefixed"><span>${cmd.type === "prefix" ? escapeHtml(project.prefix) : "/"}</span><input class="input" data-k="name" value="${escapeHtml(cmd.name)}" placeholder="my-command" maxlength="32" /></div>
+                    <div class="input-help">Lowercase letters, numbers, - and _ (max 32)</div>
+                  </div>
+                  <div class="input-group"><label class="input-label">Type</label>
+                    <div class="segmented" data-el="type">
+                      ${project.engine === "lua" ? '<button class="active" data-v="prefix">Prefix</button>' : ["slash", "prefix", "both"].map((t) => `<button class="${cmd.type === t ? "active" : ""}" data-v="${t}">${t === "both" ? "Both" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}
+                    </div>
+                  </div>
+                </div>
+                <div class="input-group"><label class="input-label">Description <span class="char-count">${(cmd.description || "").length}/100</span></label>
+                  <input class="input" data-k="description" value="${escapeHtml(cmd.description || "")}" maxlength="100" placeholder="What does this command do?" /></div>
+                ${cmd.type !== "slash" ? `<div class="input-group"><label class="input-label">Aliases (prefix, comma separated)</label><input class="input" data-k="aliases" value="${escapeHtml((cmd.aliases || []).join(", "))}" placeholder="p, pong" /></div>` : ""}
+              </div>
+
+              <div class="card">
+                <div class="card-header"><div class="card-title">Arguments / options</div><button class="btn btn-ghost btn-sm" data-act="add-arg">+ Add argument</button></div>
+                <p class="text-sm text-muted mb-md">Arguments become variables: an argument named <code>target</code> can be used as <code>{target}</code> in any block.</p>
+                <div class="arg-list" data-el="args">
+                  ${cmd.arguments.length ? cmd.arguments.map((a, i) => `
+                    <div class="arg-row" data-i="${i}">
+                      <input class="input input-sm input-code" data-a="name" value="${escapeHtml(a.name)}" placeholder="name" />
+                      <select class="input input-sm" data-a="type">${ARG_TYPES.map((t) => `<option value="${t.value}" ${a.type === t.value ? "selected" : ""}>${t.label}</option>`).join("")}</select>
+                      <input class="input input-sm" data-a="description" value="${escapeHtml(a.description || "")}" placeholder="Description" maxlength="100" />
+                      <label class="toggle-row toggle-row-sm" title="Required"><div class="toggle toggle-sm ${a.required ? "active" : ""}" data-a="required"></div><span>Required</span></label>
+                      <button class="icon-btn danger" data-a="remove" title="Remove">${icon("trash", 14)}</button>
+                    </div>`).join("") : '<div class="text-muted text-sm">No arguments.</div>'}
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-title mb-md">Restrictions</div>
+                <div class="grid-2">
+                  <div class="input-group"><label class="input-label">Cooldown per user (seconds)</label><input class="input" type="number" min="0" data-k="cooldown" value="${Number(cmd.cooldown) || 0}" /></div>
+                  <div class="input-group"><label class="input-label">Where</label>
+                    <label class="toggle-row"><div class="toggle toggle-sm ${cmd.guildOnly === false ? "active" : ""}" data-el="dms"></div><span>Also allow in DMs</span></label></div>
+                </div>
+                <div class="input-group"><label class="input-label">Required permissions</label>
+                  <div class="chip-select" data-el="perms">
+                    ${BotifyBlocks.PERMISSIONS.map((perm) => `<button class="chip-toggle ${cmd.permissions.includes(perm.value) ? "active" : ""}" data-perm="${perm.value}">${escapeHtml(perm.label)}</button>`).join("")}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-side">
+              <div class="preview-label">${icon("eye", 14)} How it appears in Discord</div>
+              <div class="discord-surface">
+                ${cmd.type === "prefix" ? `<div class="dc-typing-bar"><span>${escapeHtml(project.prefix)}${escapeHtml(cmd.name || "command")} ${cmd.arguments.map((a) => `<span class="dc-arg-chip">${escapeHtml(a.name)}</span>`).join(" ")}</span></div>` : `
+                <div class="dc-slash-popup">
+                  <div class="dc-slash-head">COMMANDS MATCHING /${escapeHtml(cmd.name || "")}</div>
+                  <div class="dc-slash-item"><img class="dc-slash-avatar" src="${DiscordPreview.avatarSvg("B", "#3ba55c")}" alt=""/><div><div class="dc-slash-name">/${escapeHtml(cmd.name || "command")} ${cmd.arguments.map((a) => `<span class="dc-arg-chip${a.required ? "" : " optional"}">${escapeHtml(a.name)}</span>`).join(" ")}</div><div class="dc-slash-desc">${escapeHtml(cmd.description || "No description")}</div></div><span class="dc-slash-app">${escapeHtml(project.name)}</span></div>
+                </div>`}
+              </div>
+            </div>
+          </div>`;
+
+        el.querySelectorAll("[data-k]").forEach((inp) => {
+          inp.oninput = () => {
+            const k = inp.dataset.k;
+            if (k === "name") {
+              const clean = inp.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "");
+              if (clean !== inp.value) inp.value = clean;
+              cmd.name = clean;
+              flow.setTitle(triggerFor().label);
+              flow.editor().setTrigger(triggerFor());
+            } else if (k === "cooldown") cmd.cooldown = Math.max(0, Number(inp.value) || 0);
+            else if (k === "aliases") cmd.aliases = inp.value.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+            else cmd[k] = inp.value;
+            if (k === "description") inp.closest(".input-group").querySelector(".char-count").textContent = `${inp.value.length}/100`;
+            markDirty();
+          };
+          inp.onchange = () => { if (inp.dataset.k === "name" || inp.dataset.k === "description") draw(); };
+        });
+        el.querySelectorAll('[data-el="type"] button').forEach((b) => {
+          b.onclick = () => { cmd.type = b.dataset.v; flow.editor().setTrigger(triggerFor()); flow.setTitle(triggerFor().label); markDirty(); draw(); };
+        });
+        el.querySelector('[data-act="add-arg"]').onclick = () => {
+          if (cmd.arguments.length >= 25) return showToast("Discord allows at most 25 options", "warning");
+          let n = cmd.arguments.length + 1;
+          while (cmd.arguments.some((a) => a.name === `arg${n}`)) n++;
+          cmd.arguments.push({ name: `arg${n}`, type: "string", description: "", required: false });
+          markDirty();
+          draw();
+        };
+        el.querySelectorAll(".arg-row").forEach((row) => {
+          const a = cmd.arguments[Number(row.dataset.i)];
+          row.querySelector('[data-a="name"]').oninput = (e) => {
+            const clean = e.target.value.toLowerCase().replace(/[\s-]+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 32);
+            if (clean !== e.target.value) e.target.value = clean;
+            a.name = clean;
+            markDirty();
+          };
+          row.querySelector('[data-a="name"]').onchange = draw;
+          row.querySelector('[data-a="type"]').onchange = (e) => { a.type = e.target.value; markDirty(); };
+          row.querySelector('[data-a="description"]').oninput = (e) => { a.description = e.target.value; markDirty(); };
+          row.querySelector('[data-a="required"]').onclick = (e) => { a.required = !a.required; e.currentTarget.classList.toggle("active", a.required); markDirty(); draw(); };
+          row.querySelector('[data-a="remove"]').onclick = () => { cmd.arguments.splice(Number(row.dataset.i), 1); markDirty(); draw(); };
+        });
+        el.querySelector('[data-el="dms"]').onclick = (e) => { cmd.guildOnly = cmd.guildOnly === false ? true : false; e.currentTarget.classList.toggle("active", cmd.guildOnly === false); markDirty(); };
+        el.querySelectorAll("[data-perm]").forEach((b) => {
+          b.onclick = () => {
+            const v = b.dataset.perm;
+            cmd.permissions = cmd.permissions.includes(v) ? cmd.permissions.filter((x) => x !== v) : [...cmd.permissions, v];
+            b.classList.toggle("active");
+            markDirty();
+          };
+        });
+      };
+      draw();
+    },
+  };
+
+  flow = openFlowEditor({
+    title: triggerFor().label,
+    icon: triggerFor().icon,
+    trigger: triggerFor(),
+    actions: cmd.actions,
+    graph: cmd.graph,
+    commandName: cmd.name,
+    triggerKind: "command",
+    variables: () => cmd.arguments.map((a) => a.name).filter(Boolean),
+    tabs: [settingsTab],
+    onSave: async (actions, graph, issues) => {
+      const name = (cmd.name || "").trim();
+      if (!/^[a-z0-9_-]{1,32}$/.test(name)) {
+        showToast("Set a valid command name in the Settings tab", "warning");
+        document.querySelector('.flow-editor [data-tab="settings"]').click();
+        return false;
+      }
+      const clash = project.commands.findIndex((c, i) => i !== editIndex && c.name === name && (c.type === cmd.type || c.type === "both" || cmd.type === "both"));
+      if (clash !== -1) {
+        showToast(`A command named "${name}" already exists`, "error");
+        return false;
+      }
+      const argNames = cmd.arguments.map((a) => a.name);
+      if (argNames.some((n) => !n) || new Set(argNames).size !== argNames.length) {
+        showToast("Every argument needs a unique name", "warning");
+        document.querySelector('.flow-editor [data-tab="settings"]').click();
+        return false;
+      }
+      const blocking = issues.filter((i) => /Not supported/.test(i.msg));
+      if (blocking.length && !(await confirmDialog({ title: "Some blocks won't work", message: `${blocking.length} block(s) are not supported by the ${project.engine} engine and will be skipped. Save anyway?`, confirmText: "Save anyway" }))) return false;
+      const data = { ...cmd, name, actions, graph };
+      if (!data.id) data.id = uid();
+      if (isEdit) project.commands[editIndex] = data;
+      else project.commands.push(data);
+      await saveProject();
+      renderCommands(document.getElementById("page-commands"));
+      showToast(`Saved ${data.type === "prefix" ? project.prefix : "/"}${name}`, "success");
+      return true;
+    },
+  });
+  if (!cmd.name) setTimeout(() => document.querySelector('.flow-editor [data-tab="settings"]')?.click(), 50);
 }

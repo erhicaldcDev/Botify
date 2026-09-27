@@ -270,9 +270,9 @@
       description: "Compare two values. Use the advanced expression for custom code conditions.",
       outputs: ["then", "else", "next"], pinLabels: { then: "True", else: "False" },
       fields: [
-        { key: "left", label: "Value", type: "text", default: "{clicked}" },
+        { key: "left", label: "Value", type: "text", default: "", placeholder: "e.g. {clicked} or {user.name}" },
         { key: "operator", label: "Operator", type: "select", options: OPERATORS, default: "==" },
-        { key: "right", label: "Compare to", type: "text", default: "yes" },
+        { key: "right", label: "Compare to", type: "text", default: "", placeholder: "e.g. yes" },
         { key: "condition", label: "Advanced: raw code expression (overrides above)", type: "code", default: "", placeholder: "e.g. member.user.bot" },
       ],
       summary: (a) => a.condition ? a.condition : `${a.left || ""} ${(OPERATORS.find((o) => o.value === a.operator) || { label: a.operator || "" }).label} ${a.right || ""}`,

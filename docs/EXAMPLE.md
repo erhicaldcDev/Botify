@@ -1,54 +1,102 @@
 # Build Your First Plugin
 
-This file walks you through a simple, complete plugin implementation. This plugin listens for `!ping` and replies with `Pong!`.
+This walks through a complete plugin that adds a command, an event, a message hook and a
+brand-new visual block. Plugins currently target the **Node.js (discord.js)** engine.
 
-## Step 1: Create the Folder
+## Step 1: Create the folder
 
-Create a folder inside the `plugins/` directory:
-
-```bash
-mkdir my-plugin
+```
+plugins/
+└── hello-plugin/
+    ├── index.js
+    └── manifest.json
 ```
 
-## Step 2: The Manifest
+## Step 2: The manifest
 
-Create `plugins/my-plugin/manifest.json`:
+`plugins/hello-plugin/manifest.json` (see [MANIFEST.md](MANIFEST.md)):
 
 ```json
 {
-  "id": "ping-plugin",
-  "name": "Ping Pong",
+  "name": "Hello Plugin",
   "version": "1.0.0",
   "author": "Botify Beginner",
-  "description": "A basic ping command to test the plugin system.",
-  "type": "js"
+  "description": "Says hello in several ways.",
+  "main": "index.js"
 }
 ```
 
-## Step 3: Main File
+## Step 3: The main file
 
-Create `plugins/my-plugin/index.js`. This code is executed when the bot starts, so make sure it uses Discord.js correctly to inject logic.
+Everything is optional - export only what you need.
 
 ```javascript
 module.exports = {
-  // Executed before the bot logs in, can register logic blocks
-  init: function (bot) {
-    console.log("Ping plugin initializing!");
+  // npm packages added to the generated bot's package.json
+  dependencies: {},
+
+  // Commands use the same action objects as the visual editor (see ACTIONS.md)
+  commands: [
+    {
+      name: "hello",
+      description: "Say hello",
+      type: "slash", // "slash", "prefix" or "both"
+      arguments: [{ name: "friend", type: "user", description: "Who to greet", required: false }],
+      actions: [
+        { type: "reply", content: "👋 Hello {friend}! Greetings from {user}." }
+      ]
+    }
+  ],
+
+  // Events - one entry per event type
+  events: [
+    {
+      type: "on_member_join",
+      actions: [{ type: "send_message", content: "Welcome {user} to **{server}**!" }]
+    }
+  ],
+
+  // Raw hooks injected into the generated index.js
+  hooks: {
+    on_init: (client) => console.log("Hello plugin loaded"),
+    on_message: async (message, client) => {
+      if (message.content === "hi bot") await message.reply("hi human");
+    }
   },
 
-  // Event listener hook
-  onMessage: function (message) {
-    if (message.content === "!ping") {
-      message.reply("Pong!");
+  // New blocks for the visual editor
+  blocks: [
+    {
+      type: "hello_shout",
+      label: "Shout",
+      icon: "📣",
+      description: "Replies with the text in capital letters",
+      fields: [{ key: "text", label: "Text", type: "text", default: "hello {user.name}" }],
+      compile: {
+        // Return JavaScript for the generated command/event.
+        // h.text(str) turns user text (with {placeholders}) into a JS expression.
+        node: (action, h) => `await B.reply(ctx, String(${h.text(action.text)}).toUpperCase());`
+      }
     }
-  }
+  ]
 };
 ```
 
-## Step 4: Loading
+Inside `compile.node` code you can use:
 
-1. Place the folder into the `plugins/` directory.
-2. Open the Botify Desktop app.
-3. Click the **Plugins** tab in the sidebar.
-4. Locate your new "Ping Pong" box and toggle the **Switchbox** to Enable it!
-5. Build and launch your project! The code injected will seamlessly listen to messages.
+- `ctx` - the current context (`ctx.user`, `ctx.member`, `ctx.guild`, `ctx.channel`, `ctx.client`, `ctx.interaction`, `ctx.message`)
+- `B` - the Botify runtime (`B.reply`, `B.send`, `B.embed`, `B.askButtons`, `B.askModal`, `B.kvGet`, `B.kvSet`, `B.sqlAll`, …, see `engine/runtime/node/botify.js`)
+- any variable created by earlier blocks
+
+Field types available for `fields`: `text`, `textarea`, `code`, `number`, `select` (with `options`),
+`checkbox`, `variable`, `color`, `embed`, `embedRef`, `params` and `list` (with an `item` schema).
+
+## Step 4: Enable it
+
+1. Put the folder into `plugins/`.
+2. Open Botify → **Plugins** → **Reload**.
+3. Toggle the plugin on for your project. Its commands are added to the bot and its blocks
+   appear in the **Plugin Blocks** section of the editor palette.
+4. Click **Run bot**.
+
+If a project already has a command with the same name, the project's command wins.

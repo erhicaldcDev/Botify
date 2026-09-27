@@ -13,7 +13,8 @@ An empty or missing `manifest.json` will cause your plugin to be ignored by the 
   "version": "1.0.0",
   "author": "YourName",
   "description": "Does something totally awesome on the server.",
-  "type": "js" // Or "py" / "lua" depending on the project language
+  "main": "index.js",
+  "type": "js"
 }
 ```
 
@@ -24,7 +25,11 @@ An empty or missing `manifest.json` will cause your plugin to be ignored by the 
 - **`version`** *(string)*: Semantic versioning string (e.g., `1.0.0`).
 - **`author`** *(string)*: Your name or handle.
 - **`description`** *(string)*: A short summary of what the plugin does. It appears in the plugin list.
-- **`type`** *(string)*: Defines what language or environment the plugin supports (`js`, `py`, `lua`). This must match the engine being used by the user's project to successfully load the code natively.
+- **`main`** *(string, optional)*: Entry file, defaults to `index.js`.
+- **`type`** *(string)*: Plugin language. Currently only `js` plugins are supported and they are applied to Node.js (discord.js) projects.
+- **`enabled`** *(boolean, optional)*: Set to `false` to hide the plugin from every project.
+
+Plugins are switched on **per project** on the Plugins page (stored in the project's `plugins` list).
 
 ## Example File
 
@@ -39,4 +44,4 @@ An empty or missing `manifest.json` will cause your plugin to be ignored by the 
 }
 ```
 
-Once parsing succeeds, the UI will present the file neatly with a switchbox in the **Plugins** dashboard!
+Once parsing succeeds, the plugin appears on the **Plugins** page with a list of the commands, events, hooks and blocks it provides.

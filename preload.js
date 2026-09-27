@@ -1,10 +1,16 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+const listen = (channel, callback) => {
+    ipcRenderer.removeAllListeners(channel);
+    ipcRenderer.on(channel, (_, event) => callback(event));
+};
+
 contextBridge.exposeInMainWorld("api", {
     window: {
         minimize: () => ipcRenderer.send("window:minimize"),
         maximize: () => ipcRenderer.send("window:maximize"),
         close: () => ipcRenderer.send("window:close"),
+        onState: (callback) => listen("window:state", callback),
     },
 
     project: {
@@ -15,6 +21,8 @@ contextBridge.exposeInMainWorld("api", {
         delete: (id) => ipcRenderer.invoke("project:delete", id),
         getToken: (id) => ipcRenderer.invoke("project:getToken", id),
         setToken: (id, token) => ipcRenderer.invoke("project:setToken", id, token),
+        export: (id) => ipcRenderer.invoke("project:export", id),
+        import: () => ipcRenderer.invoke("project:import"),
     },
 
     token: {
@@ -27,10 +35,8 @@ contextBridge.exposeInMainWorld("api", {
 
     deps: {
         install: (data) => ipcRenderer.invoke("deps:install", data),
-        onProgress: (callback) => {
-            ipcRenderer.removeAllListeners("deps:progress");
-            ipcRenderer.on("deps:progress", (_, event) => callback(event));
-        },
+        check: (data) => ipcRenderer.invoke("deps:check", data),
+        onProgress: (callback) => listen("deps:progress", callback),
     },
 
     engine: {
@@ -38,10 +44,7 @@ contextBridge.exposeInMainWorld("api", {
         stop: () => ipcRenderer.invoke("engine:stop"),
         restart: (data) => ipcRenderer.invoke("engine:restart", data),
         status: () => ipcRenderer.invoke("engine:status"),
-        onLog: (callback) => {
-            ipcRenderer.removeAllListeners("engine:log");
-            ipcRenderer.on("engine:log", (_, event) => callback(event));
-        },
+        onLog: (callback) => listen("engine:log", callback),
     },
 
     db: {
@@ -51,6 +54,7 @@ contextBridge.exposeInMainWorld("api", {
         getTableData: (projectId, tableName) => ipcRenderer.invoke("db:getTableData", projectId, tableName),
         insertRow: (projectId, tableName, data) => ipcRenderer.invoke("db:insertRow", projectId, tableName, data),
         deleteRow: (projectId, tableName, rowId) => ipcRenderer.invoke("db:deleteRow", projectId, tableName, rowId),
+        dropTable: (projectId, tableName) => ipcRenderer.invoke("db:dropTable", projectId, tableName),
     },
 
     plugins: {
@@ -65,10 +69,12 @@ contextBridge.exposeInMainWorld("api", {
 
     shell: {
         openPath: (p) => ipcRenderer.invoke("shell:openPath", p),
+        openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
     },
 
     app: {
         getPath: () => ipcRenderer.invoke("app:getPath"),
+        version: () => ipcRenderer.invoke("app:version"),
     },
 
     ide: {

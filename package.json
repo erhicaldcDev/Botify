@@ -8,8 +8,10 @@
     "scripts": {
         "start": "electron .",
         "dev": "electron . --dev",
+        "postinstall": "electron-builder install-app-deps",
+        "rebuild": "electron-builder install-app-deps",
         "build": "electron-builder",
-        "package": "electron-packager . Botify --platform=win32 --arch=x64 --out=dist --overwrite"
+        "package": "electron-packager . Botify --platform=win32 --arch=x64 --out=dist --overwrite --ignore=^/testbot"
     },
     "dependencies": {
         "better-sqlite3": "^9.6.0",
@@ -29,6 +31,12 @@
                 "zip"
             ]
         },
-        "forceCodeSigning": false
+        "forceCodeSigning": false,
+        "files": [
+            "**/*",
+            "!testbot*/**",
+            "!docs/**",
+            "!dist/**"
+        ]
     }
 }
