@@ -2,8 +2,14 @@ module.exports = {
     name: "Premium Fun Pack",
     dependencies: {},
     blocks: [
-        { type: "send_meme", label: "Send Meme", label_pl: "Wyślij Mema", icon: "🐸" },
-        { type: "random_chance", label: "50/50 Chance", label_pl: "Szansa 50/50", icon: "🎲", pins: ["true_next", "false_next", "next"] }
+        {
+            type: "send_meme", label: "Send Meme", label_pl: "Wyślij Mema", icon: "🐸", category: "plugin",
+            description: "Reply with a random meme from meme-api.com",
+            fields: [{ key: "subreddit", label: "Subreddit (optional)", type: "text", default: "" }],
+            compile: {
+                node: (a) => `try {\n  const meme = await B.http(${JSON.stringify("https://meme-api.com/gimme" + (a.subreddit ? "/" + encodeURIComponent(a.subreddit) : ""))});\n  await B.reply(ctx, { embeds: [B.embed(ctx, { title: meme.title, image: meme.url, footer: \`👍 \${meme.ups} upvotes\`, color: "#FF4500" })] });\n} catch (e) {\n  await B.reply(ctx, "Couldn't fetch a meme right now.");\n}`,
+            },
+        }
     ],
     commands: [
         {

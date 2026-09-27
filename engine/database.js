@@ -1,182 +1,156 @@
 const fs = require("fs");
 const path = require("path");
 
+const VALID_TYPES = new Set(["TEXT", "INTEGER", "REAL", "BLOB", "NUMERIC"]);
+
+/** Quote an SQLite identifier (table / column name). */
+function q(name) {
+    return '"' + String(name).replace(/"/g, '""') + '"';
+}
+
+let Database = null;
+let loadError = null;
+function driver() {
+    if (Database || loadError) return Database;
+    try {
+        Database = require("better-sqlite3");
+    } catch (e) {
+        loadError = e;
+        console.error("better-sqlite3 unavailable, using JSON fallback:", e.message);
+    }
+    return Database;
+}
+
 class DatabaseManager {
-    init(dbPath, tables) {
+    _open(dbPath) {
+        const D = driver();
+        if (!D) return null;
+        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        const db = new D(dbPath);
+        db.pragma("journal_mode = WAL");
+        return db;
+    }
+
+    _with(dbPath, fn, fallbackOp, fallbackArgs) {
+        const db = this._open(dbPath);
+        if (!db) return this._jsonFallback(dbPath, fallbackOp, fallbackArgs);
         try {
-            const Database = require("better-sqlite3");
-            const db = new Database(dbPath);
-            db.pragma("journal_mode = WAL");
-
-            if (tables && tables.length > 0) {
-                tables.forEach((table) => {
-                    const columns = table.columns
-                        .map((col) => `${col.name} ${col.type}`)
-                        .join(", ");
-                    db.exec(
-                        `CREATE TABLE IF NOT EXISTS ${table.name} (id INTEGER PRIMARY KEY AUTOINCREMENT, ${columns})`
-                    );
-                });
-            }
-
+            return fn(db);
+        } finally {
             db.close();
-            return true;
-        } catch {
-            return this._jsonFallback(dbPath, "init", { tables });
         }
+    }
+
+    init(dbPath, tables) {
+        return this._with(dbPath, (db) => {
+            (tables || []).forEach((table) => {
+                const columns = (table.columns || [])
+                    .filter((c) => c.name && c.name.toLowerCase() !== "id")
+                    .map((c) => `${q(c.name)} ${VALID_TYPES.has(String(c.type).toUpperCase()) ? String(c.type).toUpperCase() : "TEXT"}`);
+                db.exec(`CREATE TABLE IF NOT EXISTS ${q(table.name)} (id INTEGER PRIMARY KEY AUTOINCREMENT${columns.length ? ", " + columns.join(", ") : ""})`);
+            });
+            return true;
+        }, "init", { tables });
     }
 
     getTables(dbPath) {
-        try {
-            const Database = require("better-sqlite3");
-            const db = new Database(dbPath);
-            const tables = db
-                .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-                .all()
-                .map((t) => t.name);
-
-            const result = tables.map((name) => {
-                const info = db.prepare(`PRAGMA table_info(${name})`).all();
-                const count = db.prepare(`SELECT COUNT(*) as count FROM ${name}`).get();
+        if (driver() && !fs.existsSync(dbPath)) return [];
+        return this._with(dbPath, (db) => {
+            const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map((t) => t.name);
+            return tables.map((name) => {
+                const info = db.prepare(`PRAGMA table_info(${q(name)})`).all();
+                const count = db.prepare(`SELECT COUNT(*) as count FROM ${q(name)}`).get();
                 return {
                     name,
-                    columns: info.map((c) => ({ name: c.name, type: c.type })),
+                    columns: info.map((c) => ({ name: c.name, type: c.type, pk: !!c.pk })),
                     rowCount: count.count,
                 };
             });
-
-            db.close();
-            return result;
-        } catch {
-            return this._jsonFallback(dbPath, "getTables");
-        }
+        }, "getTables");
     }
 
     getTableData(dbPath, tableName) {
-        try {
-            const Database = require("better-sqlite3");
-            const db = new Database(dbPath);
-            const rows = db.prepare(`SELECT * FROM ${tableName}`).all();
-            db.close();
-            return rows;
-        } catch {
-            return this._jsonFallback(dbPath, "getTableData", { tableName });
-        }
+        return this._with(dbPath, (db) => db.prepare(`SELECT rowid AS __rowid, * FROM ${q(tableName)} LIMIT 1000`).all(), "getTableData", { tableName });
     }
 
     insertRow(dbPath, tableName, data) {
-        try {
-            const Database = require("better-sqlite3");
-            const db = new Database(dbPath);
+        return this._with(dbPath, (db) => {
             const keys = Object.keys(data);
-            const placeholders = keys.map(() => "?").join(", ");
-            const values = Object.values(data);
-            db.prepare(
-                `INSERT INTO ${tableName} (${keys.join(", ")}) VALUES (${placeholders})`
-            ).run(...values);
-            db.close();
+            if (keys.length === 0) {
+                db.prepare(`INSERT INTO ${q(tableName)} DEFAULT VALUES`).run();
+                return true;
+            }
+            db.prepare(`INSERT INTO ${q(tableName)} (${keys.map(q).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).run(...Object.values(data));
             return true;
-        } catch {
-            return this._jsonFallback(dbPath, "insertRow", { tableName, data });
-        }
+        }, "insertRow", { tableName, data });
     }
 
     deleteRow(dbPath, tableName, rowId) {
-        try {
-            const Database = require("better-sqlite3");
-            const db = new Database(dbPath);
-            db.prepare(`DELETE FROM ${tableName} WHERE id = ?`).run(rowId);
-            db.close();
+        return this._with(dbPath, (db) => {
+            db.prepare(`DELETE FROM ${q(tableName)} WHERE rowid = ?`).run(rowId);
             return true;
-        } catch {
-            return this._jsonFallback(dbPath, "deleteRow", { tableName, rowId });
-        }
+        }, "deleteRow", { tableName, rowId });
+    }
+
+    dropTable(dbPath, tableName) {
+        return this._with(dbPath, (db) => {
+            db.exec(`DROP TABLE IF EXISTS ${q(tableName)}`);
+            return true;
+        }, "dropTable", { tableName });
     }
 
     query(dbPath, sql, params = []) {
-        try {
-            const Database = require("better-sqlite3");
-            const db = new Database(dbPath);
-            let result;
-            const trimmed = sql.trim().toUpperCase();
-            if (
-                trimmed.startsWith("SELECT") ||
-                trimmed.startsWith("PRAGMA")
-            ) {
-                result = db.prepare(sql).all(...params);
-            } else {
-                result = db.prepare(sql).run(...params);
-            }
-            db.close();
-            return result;
-        } catch {
-            return [];
-        }
+        return this._with(dbPath, (db) => {
+            const stmt = db.prepare(sql);
+            return stmt.reader ? stmt.all(...params) : stmt.run(...params);
+        }, "query");
     }
 
     _jsonFallback(dbPath, operation, args = {}) {
-        const jsonPath = dbPath.replace(".db", ".json");
-
-        const loadData = () => {
-            if (fs.existsSync(jsonPath)) {
-                return JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
-            }
-            return { tables: {} };
-        };
-
-        const saveData = (data) => {
-            fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
-        };
+        const jsonPath = dbPath.replace(/\.db$/, ".json");
+        const loadData = () => (fs.existsSync(jsonPath) ? JSON.parse(fs.readFileSync(jsonPath, "utf-8")) : { tables: {} });
+        const saveData = (data) => fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
 
         switch (operation) {
             case "init": {
                 const data = loadData();
-                if (args.tables) {
-                    args.tables.forEach((table) => {
-                        if (!data.tables[table.name]) {
-                            data.tables[table.name] = { columns: table.columns, rows: [] };
-                        }
-                    });
-                }
+                (args.tables || []).forEach((table) => {
+                    if (!data.tables[table.name]) data.tables[table.name] = { columns: [{ name: "id", type: "INTEGER" }, ...table.columns], rows: [] };
+                });
                 saveData(data);
                 return true;
             }
-            case "getTables": {
-                const data = loadData();
-                return Object.entries(data.tables).map(([name, table]) => ({
-                    name,
-                    columns: table.columns,
-                    rowCount: table.rows.length,
-                }));
-            }
-            case "getTableData": {
-                const data = loadData();
-                return data.tables[args.tableName]?.rows || [];
-            }
+            case "getTables":
+                return Object.entries(loadData().tables).map(([name, t]) => ({ name, columns: t.columns, rowCount: t.rows.length }));
+            case "getTableData":
+                return (loadData().tables[args.tableName]?.rows || []).map((r) => ({ __rowid: r.id, ...r }));
             case "insertRow": {
                 const data = loadData();
-                if (data.tables[args.tableName]) {
-                    const newId =
-                        data.tables[args.tableName].rows.length > 0
-                            ? Math.max(...data.tables[args.tableName].rows.map((r) => r.id)) + 1
-                            : 1;
-                    data.tables[args.tableName].rows.push({ id: newId, ...args.data });
+                const t = data.tables[args.tableName];
+                if (t) {
+                    const id = t.rows.length ? Math.max(...t.rows.map((r) => r.id)) + 1 : 1;
+                    t.rows.push({ id, ...args.data });
                     saveData(data);
                 }
                 return true;
             }
             case "deleteRow": {
                 const data = loadData();
-                if (data.tables[args.tableName]) {
-                    data.tables[args.tableName].rows = data.tables[args.tableName].rows.filter(
-                        (r) => r.id !== args.rowId
-                    );
+                const t = data.tables[args.tableName];
+                if (t) {
+                    t.rows = t.rows.filter((r) => r.id !== args.rowId);
                     saveData(data);
                 }
                 return true;
             }
+            case "dropTable": {
+                const data = loadData();
+                delete data.tables[args.tableName];
+                saveData(data);
+                return true;
+            }
             default:
-                return [];
+                throw new Error("Database engine unavailable (better-sqlite3 failed to load). Run 'npm run rebuild' in the Botify folder.");
         }
     }
 }

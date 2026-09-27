@@ -7,7 +7,7 @@ module.exports = {
             description: "Check your current wallet balance.",
             type: "slash",
             actions: [
-                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
+                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT PRIMARY KEY, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
                 { type: "db_read", query: "SELECT wallet FROM economy WHERE user_id = ?", params: ["interaction.user.id"] },
                 { type: "send_message", content: "💰 **Your Balance:** `${rows[0]?.wallet || 0}` coins" }
             ]
@@ -17,7 +17,7 @@ module.exports = {
             description: "Work to earn some coins.",
             type: "slash",
             actions: [
-                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
+                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT PRIMARY KEY, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
                 { type: "set_variable", name: "earn", value: "Math.floor(Math.random()*150)+50" },
                 { type: "db_write", query: "INSERT INTO economy (user_id, wallet, next_claim) VALUES (?, ?, 0) ON CONFLICT(user_id) DO UPDATE SET wallet = wallet + ?", params: ["interaction.user.id", "earn", "earn"] },
                 { type: "send_message", content: "🔨 You worked a shift and earned `💰${earn}`!" }
@@ -32,7 +32,7 @@ module.exports = {
                 { name: "amount", type: "integer", required: true }
             ],
             actions: [
-                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
+                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT PRIMARY KEY, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
                 { type: "db_write", query: "UPDATE economy SET wallet = wallet - ? WHERE user_id = ?", params: ["amount", "interaction.user.id"] },
                 { type: "db_write", query: "INSERT INTO economy (user_id, wallet, next_claim) VALUES (?, ?, 0) ON CONFLICT(user_id) DO UPDATE SET wallet = wallet + ?", params: ["user.id", "amount", "amount"] },
                 { type: "send_message", content: "💸 You paid `💰${amount}` to <@${user.id}>." }
@@ -43,7 +43,7 @@ module.exports = {
             description: "Claim your daily reward.",
             type: "slash",
             actions: [
-                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
+                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS economy (user_id TEXT PRIMARY KEY, wallet INTEGER DEFAULT 0, next_claim INTEGER DEFAULT 0)", params: [] },
                 { type: "db_read", query: "SELECT next_claim FROM economy WHERE user_id = ?", params: ["interaction.user.id"] },
                 { type: "set_variable", name: "next_claim", value: "rows[0]?.next_claim || 0" },
                 {

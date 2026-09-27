@@ -22,7 +22,7 @@ module.exports = {
   dependencies: {}, value: "Math.floor(Math.random() * 10) + 1" },
                 { type: "set_variable", name: "answer",
   dependencies: {}, value: "num1 + num2" },
-                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS captchas (user_id TEXT, answer INTEGER)", params: [] },
+                { type: "db_write", query: "CREATE TABLE IF NOT EXISTS captchas (user_id TEXT PRIMARY KEY, answer INTEGER)", params: [] },
                 { type: "db_write", query: "INSERT INTO captchas (user_id, answer) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET answer = ?", params: ["interaction.user.id", "answer", "answer"] },
                 { type: "create_embed", embed: { title: "🤖 Anti-Bot Verification", description: "Please use `/answer [number]` to solve: **${num1} + ${num2} = ?**", color: "#FF0000" } }
             ]

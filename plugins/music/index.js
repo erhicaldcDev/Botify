@@ -75,7 +75,7 @@ module.exports = {
             description: "Show the current song queue.",
             type: "slash",
             actions: [
-                { type: "raw_code", code: "      const queue = client.distube.getQueue(interaction.guildId);\n      if (!queue) { await interaction.reply('There is no queue!'); return; }\n      const q = queue.songs.slice(0, 10).map((song, i) => `${i === 0 ? 'Playing:' : `${i}.`} ${song.name} - \`${song.formattedDuration}\``).join('\\n');\n      await interaction.reply({ embeds: [{ title: '📄 Current Queue', description: q, color: 0x1DB954 }] });" }
+                { type: "raw_code", code: "      const queue = client.distube.getQueue(interaction.guildId);\n      if (!queue) { await interaction.reply('There is no queue!'); return; }\n      const q = queue.songs.slice(0, 10).map((song, i) => `${i === 0 ? 'Playing:' : `${i}.`} ${song.name} (${song.formattedDuration})`).join('\\n');\n      await interaction.reply({ embeds: [{ title: '📄 Current Queue', description: q, color: 0x1DB954 }] });" }
             ]
         }
     ],

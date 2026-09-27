@@ -6,7 +6,7 @@ module.exports = {
             if (message.author.bot) return;
             const Database = require("better-sqlite3");
             const db = new Database("./data.db");
-            db.prepare("CREATE TABLE IF NOT EXISTS levels (user_id TEXT, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1)").run();
+            db.prepare("CREATE TABLE IF NOT EXISTS levels (user_id TEXT PRIMARY KEY, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1)").run();
 
             const xpToAdd = Math.floor(Math.random() * 15) + 10;
             db.prepare("INSERT INTO levels (user_id, xp, level) VALUES (?, ?, 1) ON CONFLICT(user_id) DO UPDATE SET xp = xp + ?").run(message.author.id, xpToAdd, xpToAdd);
