@@ -5,6 +5,7 @@ const PAGE_RENDERERS = {
   commands: () => renderCommands,
   events: () => renderEvents,
   embeds: () => renderEmbeds,
+  layouts: () => renderLayouts,
   database: () => renderDatabase,
   console: () => renderConsole,
   plugins: () => renderPlugins,
@@ -78,6 +79,7 @@ function updateSidebar() {
     commands: p ? (p.commands || []).length : 0,
     events: p ? (p.events || []).filter((e) => e.enabled).length : 0,
     embeds: p ? (p.embeds || []).length : 0,
+    layouts: p ? (p.layouts || []).length : 0,
   };
   Object.entries(counts).forEach(([k, v]) => {
     const badge = document.querySelector(`.nav-item[data-page="${k}"] .nav-count`);
@@ -301,7 +303,7 @@ function updateRunButton() {
 const TRANSLATIONS = {
   pl: {
     "No Project": "Brak projektu", "No Engine": "Brak silnika", PROJECT: "PROJEKT", BUILD: "TWORZENIE", DEVELOP: "PROGRAMOWANIE", CONFIGURE: "KONFIGURACJA",
-    Dashboard: "Panel główny", Commands: "Komendy", Events: "Zdarzenia", "Embed Styler": "Stylizator embedów", "Help Menu": "Menu pomocy",
+    Dashboard: "Panel główny", Commands: "Komendy", Events: "Zdarzenia", "Embed Styler": "Stylizator embedów", "Layouts (V2)": "Układy (V2)", "Help Menu": "Menu pomocy",
     "Code IDE": "Edytor kodu", Database: "Baza danych", Console: "Konsola", Plugins: "Wtyczki", Settings: "Ustawienia",
   },
 };
@@ -315,10 +317,79 @@ window.updateLanguage = () => {
   updateSidebar();
 };
 
+// ------------------------------------------------------------------ appearance
+const APPEARANCE_DEFAULTS = { accent: "", density: "comfortable", previewTheme: "dark", motion: "on", sidebar: "full" };
+
+function getAppearance() {
+  try {
+    return { ...APPEARANCE_DEFAULTS, ...JSON.parse(localStorage.getItem("botify-appearance") || "{}") };
+  } catch {
+    return { ...APPEARANCE_DEFAULTS };
+  }
+}
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function mix(hex, target, amount) {
+  const a = hexToRgb(hex);
+  const b = hexToRgb(target);
+  return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * amount).toString(16).padStart(2, "0")).join("");
+}
+
+/** Apply appearance preferences (accent color overrides the theme's accent). */
+function applyAppearance(a = getAppearance()) {
+  const root = document.documentElement;
+  const body = document.body;
+  ["--accent", "--accent-2", "--accent-hover", "--accent-glow", "--accent-subtle", "--on-accent"].forEach((v) => body.style.removeProperty(v));
+  if (/^#[0-9a-f]{6}$/i.test(a.accent || "")) {
+    const [r, g, b] = hexToRgb(a.accent);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    body.style.setProperty("--accent", a.accent);
+    body.style.setProperty("--accent-2", mix(a.accent, "#ffffff", 0.3));
+    body.style.setProperty("--accent-hover", mix(a.accent, "#000000", 0.15));
+    body.style.setProperty("--accent-glow", `rgba(${r}, ${g}, ${b}, 0.28)`);
+    body.style.setProperty("--accent-subtle", `rgba(${r}, ${g}, ${b}, 0.14)`);
+    body.style.setProperty("--on-accent", luminance > 0.62 ? "#111318" : "#ffffff");
+  }
+  root.dataset.density = a.density;
+  root.dataset.previewTheme = a.previewTheme;
+  root.dataset.motion = a.motion;
+  root.dataset.sidebar = a.sidebar;
+}
+
+function setAppearance(patch) {
+  const next = { ...getAppearance(), ...patch };
+  localStorage.setItem("botify-appearance", JSON.stringify(next));
+  applyAppearance(next);
+  document.dispatchEvent(new CustomEvent("botify:appearance"));
+  return next;
+}
+window.getAppearance = getAppearance;
+window.setAppearance = setAppearance;
+
+/** Small Dark / Light / Onyx switch shown above Discord previews. */
+function previewThemeSwitch() {
+  const cur = getAppearance().previewTheme;
+  return `<span class="preview-theme-switch" title="Discord preview theme">${[["dark", "Dark"], ["light", "Light"], ["onyx", "Onyx"]]
+    .map(([v, l]) => `<button type="button" data-preview-theme-set="${v}" class="${cur === v ? "active" : ""}">${l}</button>`).join("")}</span>`;
+}
+window.previewThemeSwitch = previewThemeSwitch;
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-preview-theme-set]");
+  if (!b) return;
+  setAppearance({ previewTheme: b.dataset.previewThemeSet });
+  document.querySelectorAll("[data-preview-theme-set]").forEach((x) => x.classList.toggle("active", x.dataset.previewThemeSet === b.dataset.previewThemeSet));
+});
+
 // ------------------------------------------------------------------ init
 async function init() {
   const savedTheme = localStorage.getItem("bot-maker-theme") || "theme-dark";
   document.body.className = savedTheme;
+  applyAppearance();
+  document.getElementById("sidebar-collapse").onclick = () => setAppearance({ sidebar: getAppearance().sidebar === "collapsed" ? "full" : "collapsed" });
 
   document.getElementById("btn-minimize").onclick = () => window.api.window.minimize();
   document.getElementById("btn-maximize").onclick = () => window.api.window.maximize();

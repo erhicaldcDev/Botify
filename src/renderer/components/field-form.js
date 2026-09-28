@@ -54,15 +54,29 @@
     return btn;
   }
 
+  /** Read / write "a.b.c" style keys. */
+  function getPath(obj, key) {
+    return String(key).split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  }
+  function setPath(obj, key, value) {
+    const parts = String(key).split(".");
+    let o = obj;
+    parts.slice(0, -1).forEach((k) => {
+      if (!o[k] || typeof o[k] !== "object") o[k] = {};
+      o = o[k];
+    });
+    o[parts[parts.length - 1]] = value;
+  }
+
   function isVisible(field, data) {
     if (!field.showIf) return true;
-    return data[field.showIf.key] === field.showIf.value;
+    return getPath(data, field.showIf.key) === field.showIf.value;
   }
 
   function fieldControl(field, data, opts, rerender) {
-    const value = data[field.key];
+    const value = getPath(data, field.key);
     const set = (v) => {
-      data[field.key] = v;
+      setPath(data, field.key, v);
       opts.onChange && opts.onChange(field.key, v);
     };
     const wrapTextInput = (input) => {
@@ -88,7 +102,11 @@
       }
       case "checkbox": {
         const cb = h("div", { class: "toggle toggle-sm" + (value ? " active" : ""), role: "switch", tabindex: "0" });
-        const toggle = () => { cb.classList.toggle("active"); set(cb.classList.contains("active")); };
+        const toggle = () => {
+          cb.classList.toggle("active");
+          set(cb.classList.contains("active"));
+          if (opts.dependents && opts.dependents.has(field.key)) rerender();
+        };
         cb.onclick = toggle;
         cb.onkeydown = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } };
         return h("label", { class: "toggle-row" }, cb, h("span", {}, field.label));
@@ -142,6 +160,29 @@
             } }, h("option", { value: "" }, "Load from saved…"), ...opts.project.embeds.map((x) => h("option", { value: x.id }, x.name || x.title))) : null));
         return card;
       }
+      case "layoutRef": {
+        const layouts = (opts.project && opts.project.layouts) || [];
+        const sel = h("select", { class: "input", onchange: (e) => { set(e.target.value); rerender(); } },
+          h("option", { value: "" }, layouts.length ? "— choose a layout —" : "No saved layouts (create one in Layouts)"),
+          ...layouts.map((l) => h("option", { value: l.id }, l.name || "Untitled layout")));
+        sel.value = value || "";
+        return sel;
+      }
+      case "layout": {
+        const layout = value && Array.isArray(value.components) ? value : { components: [] };
+        const problems = BotifyLayout.validate(layout);
+        return h("div", { class: "embed-field-card" },
+          h("div", { class: "embed-field-mini layout-field-mini", html: DiscordPreview.layout(layout, { compact: true }) }),
+          problems.length ? h("div", { class: "text-xs text-warn" }, "⚠ " + problems[0]) : null,
+          h("div", { class: "flex gap-sm" },
+            h("button", { class: "btn btn-primary btn-sm", type: "button", onclick: () => {
+              LayoutEditor.openModal(clone(layout), (updated) => { set(updated); rerender(); }, { title: "Design Components V2 message" });
+            } }, "🧱 Open Layout Designer"),
+            (opts.project && (opts.project.layouts || []).length) ? h("select", { class: "input input-sm", onchange: (e) => {
+              const src = opts.project.layouts.find((x) => x.id === e.target.value);
+              if (src) { set({ components: clone(src.components) }); rerender(); }
+            } }, h("option", { value: "" }, "Load from saved…"), ...opts.project.layouts.map((x) => h("option", { value: x.id }, x.name))) : null));
+      }
       case "params": {
         const list = Array.isArray(value) ? value : (typeof value === "string" && value ? value.split(",").map((s) => s.trim()) : []);
         if (!Array.isArray(value)) set(list);
@@ -169,8 +210,8 @@
   }
 
   function listControl(field, data, opts, set) {
-    if (!Array.isArray(data[field.key])) data[field.key] = [];
-    const items = data[field.key];
+    if (!Array.isArray(getPath(data, field.key))) setPath(data, field.key, []);
+    const items = getPath(data, field.key);
     const wrap = h("div", { class: "list-field" });
     const draw = () => {
       wrap.innerHTML = "";
@@ -220,11 +261,13 @@
    * opts: { onChange(key, value), project, variables: string[] }
    */
   function render(container, fields, data, opts = {}) {
+    // Keys other fields depend on (showIf) - changing them re-renders the form.
+    opts = { ...opts, dependents: new Set((fields || []).filter((f) => f.showIf).map((f) => f.showIf.key)) };
     const rerender = () => render(container, fields, data, opts);
     container.innerHTML = "";
     (fields || []).forEach((field) => {
       if (!isVisible(field, data)) return;
-      if (data[field.key] === undefined && field.default !== undefined) data[field.key] = clone(field.default);
+      if (getPath(data, field.key) === undefined && field.default !== undefined) setPath(data, field.key, clone(field.default));
       const control = fieldControl(field, data, opts, rerender);
       if (field.type === "checkbox") {
         container.appendChild(h("div", { class: "input-group" }, control, field.help ? h("div", { class: "input-help" }, field.help) : null));
@@ -238,5 +281,5 @@
     if (!fields || !fields.length) container.appendChild(h("p", { class: "text-muted text-sm" }, "This block has no settings."));
   }
 
-  window.FieldForm = { render, h };
+  window.FieldForm = { render, h, getPath, setPath };
 })();

@@ -201,6 +201,83 @@
   --overlay: rgba(4, 0, 14, 0.72);
 }
 
+
+.theme-forest {
+  --bg-primary: #0b120e;
+  --bg-secondary: #101a15;
+  --bg-tertiary: #14201a;
+  --bg-elevated: #192820;
+  --bg-hover: #1f3128;
+  --bg-active: #28402f;
+  --bg-input: #0c1510;
+  --border-subtle: rgba(120, 220, 170, 0.07);
+  --border-medium: rgba(120, 220, 170, 0.12);
+  --border-strong: rgba(120, 220, 170, 0.22);
+  --text-primary: #e6f2ea;
+  --text-secondary: #a3bcad;
+  --text-muted: #6b8575;
+  --accent: #3fbf7f;
+  --accent-2: #7ee0ae;
+  --accent-hover: #2f9e67;
+  --accent-glow: rgba(63, 191, 127, 0.28);
+  --accent-subtle: rgba(63, 191, 127, 0.14);
+  --on-accent: #06140d;
+  --success: #4ade80;
+  --warning: #eab308;
+  --danger: #f87171;
+  --info: #38bdf8;
+  --success-bg: rgba(74, 222, 128, 0.12);
+  --warning-bg: rgba(234, 179, 8, 0.12);
+  --danger-bg: rgba(248, 113, 113, 0.12);
+  --info-bg: rgba(56, 189, 248, 0.12);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --canvas-bg: #08100b;
+  --canvas-dot: #1b2c22;
+  --node-bg: #13201a;
+  --node-border: #24382c;
+  --overlay: rgba(2, 6, 4, 0.7);
+}
+
+.theme-sunset {
+  --bg-primary: #140d0f;
+  --bg-secondary: #1b1215;
+  --bg-tertiary: #23161a;
+  --bg-elevated: #2a1a1f;
+  --bg-hover: #352027;
+  --bg-active: #442a32;
+  --bg-input: #150e10;
+  --border-subtle: rgba(255, 160, 130, 0.07);
+  --border-medium: rgba(255, 160, 130, 0.13);
+  --border-strong: rgba(255, 160, 130, 0.24);
+  --text-primary: #fbeee9;
+  --text-secondary: #d2b3aa;
+  --text-muted: #957a72;
+  --accent: #ff7a59;
+  --accent-2: #ffb86b;
+  --accent-hover: #e8603f;
+  --accent-glow: rgba(255, 122, 89, 0.3);
+  --accent-subtle: rgba(255, 122, 89, 0.14);
+  --on-accent: #1d0a05;
+  --success: #5dd39e;
+  --warning: #ffc857;
+  --danger: #ff5c7a;
+  --info: #7cc4ff;
+  --success-bg: rgba(93, 211, 158, 0.12);
+  --warning-bg: rgba(255, 200, 87, 0.12);
+  --danger-bg: rgba(255, 92, 122, 0.12);
+  --info-bg: rgba(124, 196, 255, 0.12);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --canvas-bg: #0f090b;
+  --canvas-dot: #2e1d22;
+  --node-bg: #211519;
+  --node-border: #3a252c;
+  --overlay: rgba(8, 3, 4, 0.72);
+}
+
 /* ---------------------------------------------------------------- base */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -494,3 +571,27 @@ tr:hover td { background: var(--bg-hover); }
 .text-sm { font-size: 12.5px; }
 .text-xs { font-size: 11.5px; }
 .text-warn { color: var(--warning); }
+
+/* ---------------------------------------------------------------- appearance modes */
+[data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation: none !important; transition: none !important; }
+
+[data-density="compact"] #content { padding: 18px 24px 28px; }
+[data-density="compact"] .page-header { margin-bottom: 14px; }
+[data-density="compact"] .page-title { font-size: 21px; }
+[data-density="compact"] .card { padding: 14px; }
+[data-density="compact"] .input { padding: 6px 10px; }
+[data-density="compact"] .btn { padding: 6px 12px; }
+[data-density="compact"] .btn-sm { padding: 4px 9px; }
+[data-density="compact"] .input-group { margin-bottom: 10px; gap: 4px; }
+[data-density="compact"] .nav-item { padding: 6px 12px; }
+[data-density="compact"] .nav-group { padding: 10px 12px 4px; }
+[data-density="compact"] .cmd-card, [data-density="compact"] .event-card, [data-density="compact"] .plugin-card { padding: 12px; }
+
+[data-sidebar="collapsed"] { --sidebar-width: 64px; }
+[data-sidebar="collapsed"] .sidebar-project, [data-sidebar="collapsed"] .nav-item span, [data-sidebar="collapsed"] #engine-label { display: none; }
+[data-sidebar="collapsed"] .nav-group { font-size: 0; padding: 8px 0; margin: 4px 10px; border-top: 1px solid var(--border-subtle); }
+[data-sidebar="collapsed"] .nav-item { justify-content: center; padding: 10px 0; }
+[data-sidebar="collapsed"] .sidebar-socials { flex-direction: column; align-items: center; }
+[data-sidebar="collapsed"] .sidebar-footer { padding: 10px 8px 14px; align-items: center; }
+[data-sidebar="collapsed"] .engine-badge { padding: 10px; justify-content: center; }
+[data-sidebar="collapsed"] .nav-count-error:not(:empty) { display: block !important; position: absolute; top: 4px; right: 8px; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }

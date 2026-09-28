@@ -5,7 +5,7 @@ Commands and events store their logic as a list of actions; branch blocks keep t
 chains in `then` / `else` (or `body` for loops). Plugins can use exactly the same objects
 in their `commands` and `events` arrays.
 
-> This file is generated from `src/shared/blocks.js` - the single source of truth used by the editor and the code generator.
+> This file is generated from `src/shared/blocks.js` and `src/shared/layout.js` - the single source of truth used by the editor and the code generator.
 
 ## Text, placeholders and variables
 
@@ -173,6 +173,40 @@ Engines: JS · PY
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `ephemeral` | checkbox | `false` | Only visible to the user (ephemeral, slash commands only) |
+
+## 🧱 Components V2 Layouts
+
+### 🧱 Send Layout (V2) - `send_layout`
+
+Send a Components V2 message: containers, sections, images, separators and buttons. Can wait for a button click.
+
+Engines: JS · PY
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `layout` | layout | `…` | Layout |
+| `channelId` | text |  | Channel (optional) - Channel ID or {variable} - empty = current channel |
+| `ephemeral` | checkbox | `false` | Only visible to the user (ephemeral, slash commands only) |
+| `wait` | checkbox | `false` | Wait for a button click |
+| `timeout` | number | `60` | Wait time (seconds) |
+| `onlyAuthor` | checkbox | `true` | Only the command user can click |
+| `saveTo` | variable | `clicked` | Save clicked button ID to |
+
+### 🗃️ Send Saved Layout - `send_saved_layout`
+
+Send a layout designed on the Layouts page.
+
+Engines: JS · PY
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `layoutRef` | layoutRef |  | Saved layout |
+| `channelId` | text |  | Channel (optional) - Channel ID or {variable} - empty = current channel |
+| `ephemeral` | checkbox | `false` | Only visible to the user (ephemeral, slash commands only) |
+| `wait` | checkbox | `false` | Wait for a button click |
+| `timeout` | number | `60` | Wait time (seconds) |
+| `onlyAuthor` | checkbox | `true` | Only the command user can click |
+| `saveTo` | variable | `clicked` | Save clicked button ID to |
 
 ## 🛡️ Moderation
 
@@ -488,6 +522,74 @@ Engines: JS · PY · Lua
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `code` | code | `// your code here` | Code |
+
+## 🧱 Components V2 layout format
+
+`send_layout.layout` and saved layouts (`project.layouts[].components`) are lists of these nodes
+(limits: 40 components, 4000 characters of text, containers cannot be nested):
+
+- **`container`** 🗂️ Container - A box with an accent color that groups other components (like an embed). Fields: `accentColor`, `spoiler`, `children`.
+- **`text`** 📝 Text - Markdown text. Supports headings (#), lists, **bold**, links and {placeholders}. Fields: `content`.
+- **`section`** 🧾 Section - Text with a thumbnail or a button on the right. Fields: `content`, `accessory.kind`, `accessory.url`, `accessory.description`, `accessory.label`, `accessory.id`, `accessory.style`, `accessory.emoji`.
+- **`separator`** ➖ Separator - Vertical space, optionally with a divider line. Fields: `divider`, `spacing`.
+- **`gallery`** 🖼️ Media gallery - 1-10 images shown in a grid. Fields: `items`.
+- **`buttons`** 🔘 Button row - Up to 5 buttons. Use "Wait for a click" on the send block to react to them. Fields: `buttons`.
+
+Example:
+
+```json
+[
+  {
+    "type": "container",
+    "accentColor": "#5865f2",
+    "spoiler": false,
+    "children": [
+      {
+        "type": "section",
+        "content": "# Welcome, {user.name}! 🎉\nYou are member **#{server.members}** of **{server}**.",
+        "accessory": {
+          "kind": "thumbnail",
+          "url": "{user.avatar}",
+          "description": "avatar",
+          "spoiler": false,
+          "label": "",
+          "id": "",
+          "style": "2",
+          "emoji": ""
+        }
+      },
+      {
+        "type": "separator",
+        "divider": true,
+        "spacing": "small"
+      },
+      {
+        "type": "text",
+        "content": "📜 Read the rules\n🎭 Pick your roles\n💬 Say hi in {channel}"
+      },
+      {
+        "type": "buttons",
+        "buttons": [
+          {
+            "label": "Rules",
+            "id": "rules",
+            "style": "1",
+            "emoji": "📜",
+            "url": ""
+          },
+          {
+            "label": "Roles",
+            "id": "roles",
+            "style": "2",
+            "emoji": "🎭",
+            "url": ""
+          }
+        ]
+      }
+    ]
+  }
+]
+```
 
 ## Legacy actions
 

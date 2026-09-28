@@ -1,7 +1,7 @@
 /* ============================================================
    Discord look-alike previews (always Discord dark theme)
    ============================================================ */
-.discord-surface {
+:root, .discord-surface {
   --dc-bg: #313338;
   --dc-embed-bg: #2b2d31;
   --dc-text: #dbdee1;
@@ -10,6 +10,15 @@
   --dc-link: #00a8fc;
   --dc-mention-bg: rgba(88, 101, 242, 0.3);
   --dc-mention: #c9cdfb;
+  --dc-code-bg: #2b2d31;
+  --dc-input-bg: #1e1f22;
+  --dc-menu-bg: #2b2d31;
+  --dc-container-bg: #393a41;
+  --dc-container-border: rgba(255, 255, 255, 0.06);
+  --dc-divider: #4e5058;
+  --dc-secondary-btn: #4e5058;
+}
+.discord-surface {
   background: var(--dc-bg);
   color: var(--dc-text);
   border-radius: var(--radius-lg);
@@ -51,10 +60,10 @@
 .dc-var { background: rgba(250, 166, 26, 0.16); color: #ffc36b; border-radius: 4px; padding: 0 4px; font-family: var(--font-mono); font-size: 0.85em; border: 1px dashed rgba(250, 166, 26, 0.45); }
 .dc-var-code { background: rgba(0, 168, 252, 0.14); color: #7dd3fc; border-color: rgba(0, 168, 252, 0.4); }
 .dc-timestamp-inline { background: rgba(255, 255, 255, 0.06); border-radius: 3px; padding: 0 2px; }
-.dc-inline-code { background: #2b2d31; border: 1px solid #1e1f22; border-radius: 4px; padding: 0 3px; font-family: var(--font-mono); font-size: 0.85em; color: var(--dc-text); }
-.dc-codeblock { background: #2b2d31; border: 1px solid #1e1f22; border-radius: 4px; padding: 7px 9px; margin: 4px 0; font-family: var(--font-mono); font-size: 0.85em; white-space: pre-wrap; }
+.dc-inline-code { background: var(--dc-code-bg); border: 1px solid var(--dc-input-bg); border-radius: 4px; padding: 0 3px; font-family: var(--font-mono); font-size: 0.85em; color: var(--dc-text); }
+.dc-codeblock { background: var(--dc-code-bg); border: 1px solid var(--dc-input-bg); border-radius: 4px; padding: 7px 9px; margin: 4px 0; font-family: var(--font-mono); font-size: 0.85em; white-space: pre-wrap; }
 .dc-codeblock code { background: none; border: 0; padding: 0; }
-.dc-quote { border-left: 4px solid #4e5058; padding: 0 8px 0 12px; margin: 2px 0; }
+.dc-quote { border-left: 4px solid var(--dc-divider); padding: 0 8px 0 12px; margin: 2px 0; }
 .dc-h1 { font-size: 1.5em; font-weight: 700; color: var(--dc-header); margin: 4px 0 2px; line-height: 1.25; }
 .dc-h2 { font-size: 1.25em; font-weight: 700; color: var(--dc-header); margin: 4px 0 2px; }
 .dc-h3 { font-size: 1.05em; font-weight: 700; color: var(--dc-header); margin: 4px 0 2px; }
@@ -92,12 +101,12 @@
 .dc-action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .dc-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 60px; padding: 2px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #fff; user-select: none; }
 .dc-button-primary { background: #5865f2; }
-.dc-button-secondary { background: #4e5058; }
+.dc-button-secondary { background: var(--dc-secondary-btn); }
 .dc-button-success { background: #248046; }
 .dc-button-danger { background: #da373c; }
-.dc-button-link { background: #4e5058; }
-.dc-select { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 400px; height: 40px; padding: 0 8px 0 12px; background: #1e1f22; border: 1px solid #1e1f22; border-radius: 8px; color: var(--dc-muted); font-size: 14px; }
-.dc-select-menu { max-width: 400px; margin-top: 4px; background: #2b2d31; border: 1px solid #1e1f22; border-radius: 8px; overflow: hidden; }
+.dc-button-link { background: var(--dc-secondary-btn); }
+.dc-select { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 400px; height: 40px; padding: 0 8px 0 12px; background: var(--dc-input-bg); border: 1px solid var(--dc-input-bg); border-radius: 8px; color: var(--dc-muted); font-size: 14px; }
+.dc-select-menu { max-width: 400px; margin-top: 4px; background: var(--dc-menu-bg); border: 1px solid var(--dc-input-bg); border-radius: 8px; overflow: hidden; }
 .dc-select-option { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 14px; }
 .dc-select-option + .dc-select-option { border-top: 1px solid rgba(255, 255, 255, 0.04); }
 .dc-select-option:hover { background: rgba(255, 255, 255, 0.04); }
@@ -132,3 +141,50 @@
 .dc-arg-chip { font-size: 12px; font-weight: 500; background: #1e1f22; color: #dbdee1; padding: 0 6px; border-radius: 4px; }
 .dc-arg-chip.optional { opacity: 0.6; }
 .dc-typing-bar { margin: 0 12px; background: #383a40; border-radius: 8px; padding: 11px 14px; font-size: 15px; color: #dbdee1; display: flex; gap: 6px; align-items: center; }
+
+/* Components V2 */
+.dc-v2 { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; max-width: 560px; }
+.dc-v2-container { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 16px; background: var(--dc-container-bg); border: 1px solid var(--dc-container-border); border-radius: 8px; border-left: 4px solid var(--accent, transparent); overflow: hidden; }
+.dc-v2-container.spoiler > :not(.dc-v2-spoiler-cover) { filter: blur(28px); }
+.dc-v2-spoiler-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; color: #fff; background: rgba(0, 0, 0, 0.35); }
+.dc-v2-text { font-size: 15px; white-space: pre-wrap; word-wrap: break-word; }
+.discord-surface-sm .dc-v2-text { font-size: 14px; }
+.dc-v2-section { display: flex; gap: 16px; align-items: flex-start; }
+.dc-v2-section > .dc-v2-text { flex: 1; min-width: 0; }
+.dc-v2-thumb { flex-shrink: 0; position: relative; }
+.dc-v2-thumb-img { width: 85px; height: 85px; border-radius: 8px; object-fit: cover; display: block; }
+.dc-v2-thumb.spoiler .dc-v2-thumb-img { filter: blur(14px); }
+.dc-v2-accessory-btn { flex-shrink: 0; display: flex; align-self: center; }
+.dc-v2-sep { height: 8px; position: relative; }
+.dc-v2-sep.large { height: 24px; }
+.dc-v2-sep:not(.nodivider)::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--dc-divider); }
+.dc-v2-gallery { display: grid; gap: 4px; border-radius: 8px; overflow: hidden; }
+.dc-v2-gallery.g1 { grid-template-columns: 1fr; }
+.dc-v2-gallery.g2, .dc-v2-gallery.g4 { grid-template-columns: 1fr 1fr; }
+.dc-v2-gallery.g3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.dc-v2-gallery.g3 .dc-v2-gallery-item:first-child { grid-row: span 2; }
+.dc-v2-gallery.gn { grid-template-columns: repeat(3, 1fr); }
+.dc-v2-gallery-item { position: relative; min-height: 90px; background: var(--dc-input-bg); }
+.dc-v2-gallery.g1 .dc-v2-gallery-item { max-height: 320px; }
+.dc-v2-gallery-img { width: 100%; height: 100%; min-height: 90px; object-fit: cover; display: block; }
+.dc-v2-gallery.g1 .dc-v2-gallery-img { max-height: 320px; }
+.dc-v2-gallery-item.spoiler .dc-v2-gallery-img { filter: blur(24px); }
+.dc-v2-spoiler-tag { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+.dc-v2-gallery-empty { padding: 20px; text-align: center; color: var(--dc-muted); font-size: 13px; border: 1px dashed var(--dc-divider); }
+.dc-v2 .dc-action-row { margin-top: 0; }
+
+/* Preview themes */
+[data-preview-theme="light"] .discord-surface {
+  --dc-bg: #ffffff; --dc-embed-bg: #f2f3f5; --dc-text: #313338; --dc-header: #060607; --dc-muted: #5c5e66; --dc-link: #006ce7;
+  --dc-mention-bg: rgba(88, 101, 242, 0.15); --dc-mention: #4752c4; --dc-code-bg: #f2f3f5; --dc-input-bg: #e3e5e8; --dc-menu-bg: #ffffff;
+  --dc-container-bg: #f2f3f5; --dc-container-border: rgba(0, 0, 0, 0.08); --dc-divider: #d4d7dc; --dc-secondary-btn: #6d6f78;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+[data-preview-theme="light"] .dc-select-option-label { color: #060607; }
+[data-preview-theme="light"] .dc-var { color: #9a5b00; background: rgba(250, 166, 26, 0.18); }
+[data-preview-theme="light"] .dc-var-code { color: #0369a1; }
+[data-preview-theme="light"] .dc-reply-bar::before { border-color: #c4c9ce; }
+[data-preview-theme="onyx"] .discord-surface {
+  --dc-bg: #070709; --dc-embed-bg: #131416; --dc-code-bg: #16171a; --dc-input-bg: #000000; --dc-menu-bg: #111214;
+  --dc-container-bg: #121316; --dc-container-border: rgba(255, 255, 255, 0.07); --dc-divider: #2e3035; --dc-secondary-btn: #3a3c42;
+}

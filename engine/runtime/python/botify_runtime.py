@@ -302,9 +302,9 @@ async def resolve_channel(ctx, value):
     return ch
 
 
-async def send(ctx, channel_value, content=None, embed=None, ephemeral=False):
+async def send(ctx, channel_value, content=None, embed=None, ephemeral=False, view=None):
     if not _stringify(channel_value).strip():
-        return await reply(ctx, content, embed, ephemeral=ephemeral)
+        return await reply(ctx, content, embed, view, ephemeral=ephemeral)
     ch = await resolve_channel(ctx, channel_value)
     if ch is None:
         print(f"[Botify] Channel not found: {channel_value}")
@@ -314,6 +314,8 @@ async def send(ctx, channel_value, content=None, embed=None, ephemeral=False):
         kwargs["content"] = str(content)[:2000]
     if embed is not None:
         kwargs["embed"] = embed
+    if view is not None:
+        kwargs["view"] = view
     msg = await ch.send(**(kwargs or {"content": "​"}))
     ctx.last_message = msg
     return msg
@@ -567,6 +569,116 @@ async def ask_modal(ctx, title="Form", inputs=None, timeout=300, variables=None)
     ctx.interaction = modal.submitted
     _auto_ack(modal.submitted)
     return modal.values
+
+
+# ------------------------------------------------------------- Components V2
+def _layout_view(ctx, comps, variables, timeout, on_click=None, author_id=None):
+    t = lambda v: text(ctx, v, variables)
+
+    class _View(discord.ui.LayoutView):
+        async def interaction_check(self, interaction):
+            if author_id is None or interaction.user.id == author_id:
+                return True
+            await interaction.response.send_message("This isn't for you.", ephemeral=True)
+            return False
+
+    view = _View(timeout=timeout)
+
+    def button(b):
+        style = _BUTTON_STYLES.get(str(b.get("style", "1")), discord.ButtonStyle.primary)
+        label = t(b.get("label", ""))[:80] or None
+        emoji = b.get("emoji") or None
+        if style == discord.ButtonStyle.link:
+            url = t(b.get("url"))
+            return discord.ui.Button(label=label or "Link", url=url if _is_url(url) else "https://discord.com", emoji=emoji)
+        btn = discord.ui.Button(label=label or (None if emoji else "Button"), style=style, emoji=emoji, custom_id=str(b.get("id") or "btn")[:100])
+        if on_click:
+            async def cb(interaction, _id=btn.custom_id):
+                await on_click(interaction, _id)
+            btn.callback = cb
+        return btn
+
+    def node(n):
+        kind = n.get("type")
+        if kind == "text":
+            return discord.ui.TextDisplay(_clip(t(n.get("content")) or "​", 4000))
+        if kind == "section":
+            content = _clip(t(n.get("content")) or "​", 4000)
+            acc = n.get("accessory") or {}
+            if acc.get("kind") == "button":
+                return discord.ui.Section(content, accessory=button(acc))
+            url = t(acc.get("url"))
+            if _is_url(url):
+                kw = {"spoiler": bool(acc.get("spoiler"))}
+                if acc.get("description"):
+                    kw["description"] = t(acc["description"])[:1024]
+                return discord.ui.Section(content, accessory=discord.ui.Thumbnail(url, **kw))
+            return discord.ui.TextDisplay(content)
+        if kind == "separator":
+            return discord.ui.Separator(visible=n.get("divider", True) is not False,
+                                        spacing=discord.SeparatorSpacing.large if n.get("spacing") == "large" else discord.SeparatorSpacing.small)
+        if kind == "gallery":
+            items = []
+            for it in (n.get("items") or [])[:10]:
+                url = t(it.get("url"))
+                if _is_url(url):
+                    kw = {"spoiler": bool(it.get("spoiler"))}
+                    if it.get("description"):
+                        kw["description"] = t(it["description"])[:1024]
+                    items.append(discord.MediaGalleryItem(url, **kw))
+            return discord.ui.MediaGallery(*items) if items else None
+        if kind == "buttons":
+            buttons = [button(b) for b in (n.get("buttons") or [])[:5]]
+            return discord.ui.ActionRow(*buttons) if buttons else None
+        if kind == "container":
+            children = [c for c in (node(x) for x in (n.get("children") or []) if x.get("type") != "container") if c is not None]
+            if not children:
+                return None
+            color = str(n.get("accentColor") or "").replace("#", "")
+            kw = {"spoiler": bool(n.get("spoiler"))}
+            if re.fullmatch(r"[0-9a-fA-F]{6}", color):
+                kw["accent_colour"] = int(color, 16)
+            return discord.ui.Container(*children, **kw)
+        return None
+
+    for n in comps or []:
+        item = node(n)
+        if item is not None:
+            view.add_item(item)
+    if not view.children:
+        view.add_item(discord.ui.TextDisplay("​"))
+    return view
+
+
+async def send_layout(ctx, channel_value, comps, variables=None, ephemeral=False, wait=False, timeout=60, only_author=True):
+    """Send a Components V2 layout. With wait=True returns the clicked button id ("timeout" if none)."""
+    state = {"id": None, "interaction": None}
+    holder = {}
+
+    async def on_click(interaction, custom_id):
+        state["id"], state["interaction"] = custom_id, interaction
+        holder["view"].stop()
+
+    view = _layout_view(ctx, comps, variables, max(1, to_number(timeout) or 60) if wait else None,
+                        on_click if wait else None, ctx.user.id if (wait and only_author and ctx.user) else None)
+    holder["view"] = view
+    msg = await send(ctx, channel_value, ephemeral=ephemeral, view=view)
+    if not wait:
+        return "sent"
+    await view.wait()
+    for item in view.walk_children():
+        if isinstance(item, discord.ui.Button) and item.style != discord.ButtonStyle.link:
+            item.disabled = True
+    if msg is not None:
+        try:
+            await msg.edit(view=view)
+        except discord.HTTPException:
+            pass
+    if state["interaction"] is None:
+        return "timeout"
+    ctx.interaction = state["interaction"]
+    _auto_ack(state["interaction"])
+    return state["id"]
 
 
 # ------------------------------------------------------------------ moderation

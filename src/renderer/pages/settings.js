@@ -9,12 +9,17 @@ function renderSettings(el) {
   const s = p ? p.settings || (p.settings = { intents: { messageContent: true, members: true, presences: false }, devGuildId: "" }) : null;
   if (s && !s.intents) s.intents = { messageContent: true, members: true, presences: false };
 
+  const look = getAppearance();
+  const ACCENTS = ["#7c6aef", "#5865f2", "#3b8be0", "#00a8fc", "#1abc9c", "#43b581", "#faa61a", "#ed4245", "#eb459e", "#9b59b6"];
+
   const THEMES = [
     { id: "theme-dark", name: "Dark", colors: ["#0d0f14", "#181c26", "#7c6aef"] },
     { id: "theme-midnight", name: "Midnight", colors: ["#05070a", "#0e121a", "#3182ce"] },
     { id: "theme-discord", name: "Discord", colors: ["#1e1f22", "#2b2d31", "#5865f2"] },
     { id: "theme-light", name: "Light", colors: ["#f8f9fc", "#ffffff", "#6366f1"] },
     { id: "theme-cyberpunk", name: "Cyberpunk", colors: ["#0b021d", "#1b0542", "#ff00ff"] },
+    { id: "theme-forest", name: "Forest", colors: ["#0b120e", "#14201a", "#3fbf7f"] },
+    { id: "theme-sunset", name: "Sunset", colors: ["#140d0f", "#23161a", "#ff7a59"] },
   ];
 
   el.innerHTML = `
@@ -40,6 +45,31 @@ function renderSettings(el) {
         </div>
         <div class="input-group"><label class="input-label">Code editor font size</label>
           <input class="input" type="number" min="10" max="24" data-el="size" value="${escapeHtml(ideSize)}" /></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title mb-md">Design & layout</div>
+        <div class="input-group"><label class="input-label">Accent color</label>
+          <div class="color-row">
+            <input type="color" class="color-swatch" data-el="accent" value="${/^#[0-9a-f]{6}$/i.test(look.accent) ? look.accent : "#7c6aef"}" />
+            <div class="color-presets">${ACCENTS.map((c) => `<button type="button" class="color-dot ${look.accent === c ? "selected" : ""}" data-accent="${c}" style="background:${c}" title="${c}"></button>`).join("")}</div>
+            <button class="btn btn-ghost btn-sm" data-act="accent-reset">Theme default</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="input-group"><label class="input-label">Density</label>
+            <div class="segmented" data-look="density">${[["comfortable", "Comfortable"], ["compact", "Compact"]].map(([v, l]) => `<button data-v="${v}" class="${look.density === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="input-group"><label class="input-label">Sidebar</label>
+            <div class="segmented" data-look="sidebar">${[["full", "Full"], ["collapsed", "Icons only"]].map(([v, l]) => `<button data-v="${v}" class="${look.sidebar === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="input-group"><label class="input-label">Discord preview theme</label>
+            <div class="segmented" data-look="previewTheme">${[["dark", "Dark"], ["light", "Light"], ["onyx", "Onyx"]].map(([v, l]) => `<button data-v="${v}" class="${look.previewTheme === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="input-group"><label class="input-label">Animations</label>
+            <div class="segmented" data-look="motion">${[["on", "On"], ["off", "Reduced"]].map(([v, l]) => `<button data-v="${v}" class="${look.motion === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+        </div>
+        <div class="preview-label">${icon("eye", 14)} Preview</div>
+        <div class="discord-surface discord-surface-sm" data-el="look-preview"></div>
       </div>
 
       ${p ? `
@@ -113,6 +143,29 @@ function renderSettings(el) {
     window.updateLanguage();
     showToast(langSel.value === "pl" ? "Zmieniono język" : "Language changed", "success");
   };
+  const lookPreview = el.querySelector('[data-el="look-preview"]');
+  const drawLookPreview = () => {
+    lookPreview.innerHTML = DiscordPreview.message({ command: "/preview", embeds: [{ title: "Preview theme", description: "This is how **embeds** look with the selected Discord theme.", color: getAppearance().accent || "#5865f2", fields: [] }] });
+  };
+  drawLookPreview();
+  el.querySelectorAll("[data-look]").forEach((group) => {
+    group.querySelectorAll("button").forEach((b) => {
+      b.onclick = () => {
+        setAppearance({ [group.dataset.look]: b.dataset.v });
+        group.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+        drawLookPreview();
+      };
+    });
+  });
+  const setAccent = (c) => {
+    setAppearance({ accent: c });
+    el.querySelectorAll("[data-accent]").forEach((d) => d.classList.toggle("selected", d.dataset.accent === c));
+    drawLookPreview();
+  };
+  el.querySelectorAll("[data-accent]").forEach((d) => { d.onclick = () => { el.querySelector('[data-el="accent"]').value = d.dataset.accent; setAccent(d.dataset.accent); }; });
+  el.querySelector('[data-el="accent"]').oninput = (e) => setAccent(e.target.value);
+  el.querySelector('[data-act="accent-reset"]').onclick = () => setAccent("");
+
   el.querySelector('[data-el="font"]').onchange = (e) => localStorage.setItem("botify-ide-font", e.target.value);
   el.querySelector('[data-el="size"]').onchange = (e) => localStorage.setItem("botify-ide-size", String(Math.min(24, Math.max(10, Number(e.target.value) || 13))));
 

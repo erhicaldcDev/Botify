@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const Blocks = require("../src/shared/blocks");
+const Layout = require("../src/shared/layout");
 
 const uid = () => crypto.randomUUID();
 
@@ -95,6 +96,9 @@ function createProject(data) {
             color: "#5865f2", thumbnail: "{user.avatar}", image: "", footer: "{server} • member #{server.members}", footerIcon: "", timestamp: true,
             authorName: "", authorIcon: "", authorUrl: "", url: "", fields: [],
         }] : [],
+        layouts: template === "starter"
+            ? [{ id: uid(), name: "Welcome card", components: JSON.parse(JSON.stringify(Layout.TEMPLATES.find((t) => t.name === "Welcome card").components)) }]
+            : [],
         database: { type: "sqlite", tables: [] },
         plugins: [],
         settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
@@ -125,6 +129,7 @@ function migrateProject(p) {
     project.events = events.map((e) => ({ actions: [], ...e }));
 
     project.embeds = (project.embeds || []).map((e, i) => ({ ...e, id: e.id || uid(), name: e.name || e.title || `Embed ${i + 1}` }));
+    project.layouts = (project.layouts || []).map((l, i) => ({ ...l, id: l.id || uid(), name: l.name || `Layout ${i + 1}`, components: Array.isArray(l.components) ? l.components : [] }));
     project.plugins = Array.isArray(project.plugins) ? project.plugins.filter((x) => typeof x === "string") : [];
     project.settings = {
         ...DEFAULT_SETTINGS,

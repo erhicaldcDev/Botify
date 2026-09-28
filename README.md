@@ -9,16 +9,18 @@ Botify is an advanced, Electron-based desktop application that allows you to cre
 ## 🚀 Key Features
 
 *   **Blueprint Visual Scripting (BVS):** Build slash & prefix commands and event handlers as node graphs. Pan/zoom canvas, drag blocks from the palette, drag wires between ◆ pins (drop a wire on empty space to create the next block), right-click menus, undo/redo, auto-arrange and live validation. Every graph compiles to working bot code.
-*   **40+ blocks:** replies, embeds, DMs, reactions, moderation (kick, ban, timeout, roles, nicknames, purge), conditions & loops, variables, random values, persistent storage, SQL, HTTP requests, bot status and custom code.
+*   **45+ blocks:** replies, embeds, DMs, reactions, moderation (kick, ban, timeout, roles, nicknames, purge), conditions & loops, variables, random values, persistent storage, SQL, HTTP requests, bot status and custom code.
 *   **Interactive modules:** **Buttons**, **Select menus** and **Modal forms** (pop-up text inputs) that wait for the user and store the answer in a variable - `{clicked}`, `{selected}`, `{form.email}`.
 *   **Embed Styler:** design embeds (author, title, description with markdown toolbar, fields, images, footer, timestamp, colors) with a **live Discord-accurate preview**, then send them from any flow with *Send Saved Embed*. Import/export Discord embed JSON.
+*   **Components V2 Layouts:** design Discord's new component messages - containers with accent colors, sections with thumbnails or buttons, media galleries, separators and button rows - in a tree designer with live preview, templates and limit checks. Send them with *Send Layout* / *Send Saved Layout* and optionally wait for a button click.
 *   **Live previews everywhere:** the block inspector shows exactly how messages, embeds, buttons, menus and modals will look in Discord.
 *   **Placeholders & variables:** `{user}`, `{server}`, `{channel}`, command arguments and saved values work in every text field.
 *   **Multi-engine output:** `Discord.JS` (Node.js), `Discord.PY` (Python) and `Discordia` (Lua, prefix commands). Generated bots ship with a small runtime helper, are syntax-checked on build and report clear errors (bad token, missing intents).
 *   **One-click Build & Run:** saves, generates, installs dependencies when needed and starts the bot; live console with filters and a clickable invite link.
 *   **Help Menu designer:** generates an interactive `/help` with a select menu, buttons or a single embed.
 *   **Plugins:** enable per project; plugins add commands, events, hooks and new visual blocks.
-*   **Code IDE, Database editor, themes (Dark, Midnight, Discord, Light, Cyberpunk) and English/Polish UI.**
+*   **Customizable look:** 7 themes (Dark, Midnight, Discord, Light, Cyberpunk, Forest, Sunset), custom accent color, compact density, icon-only sidebar, reduced motion and Dark/Light/Onyx Discord previews.
+*   **Code IDE, Database editor and English/Polish UI.**
 
 ## 📦 How to run / Installation
 

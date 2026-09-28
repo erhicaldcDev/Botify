@@ -209,6 +209,12 @@
       if ((node.type === "add_role" || node.type === "remove_role" || node.type === "has_role") && !String(d.roleId || "").trim()) out.push("Role ID is empty");
       if (node.type === "send_saved_embed" && !d.embedRef) out.push("No saved embed selected");
       if (node.type === "show_modal" && !(d.inputs || []).length) out.push("Modal needs at least one input");
+      if (node.type === "send_layout") BotifyLayout.validate(d.layout || { components: [] }).forEach((m) => out.push(m));
+      if (node.type === "send_saved_layout" && !((opts.project && opts.project.layouts) || []).some((l) => l.id === d.layoutRef)) out.push("No saved layout selected");
+      if ((node.type === "send_layout" || node.type === "send_saved_layout") && d.wait) {
+        const layout = node.type === "send_layout" ? d.layout : ((opts.project && opts.project.layouts) || []).find((l) => l.id === d.layoutRef);
+        if (layout && !BotifyLayout.buttonIds(layout).length) out.push("Waits for a click but the layout has no buttons");
+      }
       if (node.type === "send_buttons" && !(d.buttons || []).length) out.push("Add at least one button");
       if (node.type === "send_select_menu" && !(d.options || []).length) out.push("Add at least one option");
       if (node.type === "show_modal" && opts.triggerKind === "event") out.push("Modals only work in commands");

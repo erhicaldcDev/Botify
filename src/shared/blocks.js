@@ -19,6 +19,7 @@
   const CATEGORIES = [
     { id: "message", label: "Messages", color: "#5865f2", icon: "💬" },
     { id: "interactive", label: "Interactive (Buttons, Menus, Modals)", color: "#eb459e", icon: "🧩" },
+    { id: "layout", label: "Components V2 Layouts", color: "#00a8fc", icon: "🧱" },
     { id: "moderation", label: "Moderation", color: "#ed4245", icon: "🛡️" },
     { id: "logic", label: "Logic & Flow", color: "#3ba55c", icon: "🔀" },
     { id: "data", label: "Variables & Data", color: "#faa61a", icon: "📦" },
@@ -204,6 +205,41 @@
       type: "defer_reply", label: "Defer (Thinking...)", icon: "⏳", category: "interactive", engines: NODE_PY,
       description: "Show 'Bot is thinking...' - use before slow actions (API requests) so the interaction does not time out.",
       fields: [f.ephemeral()],
+    },
+
+    // ------------------------------------------------------- Components V2
+    {
+      type: "send_layout", label: "Send Layout (V2)", icon: "🧱", category: "layout", engines: NODE_PY,
+      description: "Send a Components V2 message: containers, sections, images, separators and buttons. Can wait for a button click.",
+      fields: [
+        {
+          key: "layout", label: "Layout", type: "layout",
+          default: { components: [{ type: "container", accentColor: "#5865f2", spoiler: false, children: [
+            { type: "text", content: "## Hello {user.name}!\nThis is a **Components V2** message." },
+            { type: "separator", divider: true, spacing: "small" },
+            { type: "buttons", buttons: [{ label: "Nice!", id: "nice", style: "1", emoji: "✨", url: "" }] },
+          ] }] },
+        },
+        f.channel(), f.ephemeral(),
+        { key: "wait", label: "Wait for a button click", type: "checkbox", default: false },
+        { key: "timeout", label: "Wait time (seconds)", type: "number", default: 60, showIf: { key: "wait", value: true } },
+        { key: "onlyAuthor", label: "Only the command user can click", type: "checkbox", default: true, showIf: { key: "wait", value: true } },
+        { key: "saveTo", label: "Save clicked button ID to", type: "variable", default: "clicked", showIf: { key: "wait", value: true } },
+      ],
+      summary: (a) => `${((a.layout && a.layout.components) || []).length} component(s)${a.wait ? " • waits for click" : ""}`,
+    },
+    {
+      type: "send_saved_layout", label: "Send Saved Layout", icon: "🗃️", category: "layout", engines: NODE_PY,
+      description: "Send a layout designed on the Layouts page.",
+      fields: [
+        { key: "layoutRef", label: "Saved layout", type: "layoutRef", default: "" },
+        f.channel(), f.ephemeral(),
+        { key: "wait", label: "Wait for a button click", type: "checkbox", default: false },
+        { key: "timeout", label: "Wait time (seconds)", type: "number", default: 60, showIf: { key: "wait", value: true } },
+        { key: "onlyAuthor", label: "Only the command user can click", type: "checkbox", default: true, showIf: { key: "wait", value: true } },
+        { key: "saveTo", label: "Save clicked button ID to", type: "variable", default: "clicked", showIf: { key: "wait", value: true } },
+      ],
+      summary: (a) => (a.layoutRef ? "Saved layout" : "No layout selected") + (a.wait ? " • waits for click" : ""),
     },
 
     // ------------------------------------------------------------- Moderation

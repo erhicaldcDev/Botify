@@ -115,7 +115,8 @@ function collectVariables(actions, out = new Set()) {
         if (a.type === "set_variable" || a.type === "math") out.add(a.name || "variable");
         if (a.type === "loop") out.add(a.variable || "i");
         const st = saveTarget(a);
-        if (st && a.type !== "send_message") out.add(st);
+        const isLayout = a.type === "send_layout" || a.type === "send_saved_layout";
+        if (st && a.type !== "send_message" && (!isLayout || a.wait)) out.add(st);
         if (a.type === "send_message" && a.saveTo) out.add(a.saveTo);
         ["then", "else", "body"].forEach((k) => { if (Array.isArray(a[k])) collectVariables(a[k], out); });
     });
@@ -135,6 +136,16 @@ function findEmbed(project, ref) {
     if (!ref) return null;
     const list = project.embeds || [];
     return list.find((e) => e.id === ref) || list.find((e) => (e.name || e.title) === ref) || null;
+}
+
+/** Components of a layout block: inline layout or a saved one from project.layouts. */
+function layoutFor(project, action) {
+    if (action.type === "send_layout") return (action.layout && Array.isArray(action.layout.components)) ? action.layout.components : null;
+    const ref = action.layoutRef;
+    if (!ref) return null;
+    const list = project.layouts || [];
+    const found = list.find((l) => l.id === ref) || list.find((l) => l.name === ref);
+    return found ? found.components || [] : null;
 }
 
 function indentLines(code, indent) {
@@ -160,7 +171,7 @@ function camelToSnake(s) {
 
 module.exports = {
     Blocks, JS_RESERVED, PY_RESERVED, splitTemplate, hasTemplate, identifier, commandName, optionName, clampDescription,
-    normalizeAction, collectVariables, walkActions, saveTarget, findEmbed, indentLines, dedent, hexColor, camelToSnake,
+    normalizeAction, collectVariables, walkActions, saveTarget, findEmbed, layoutFor, indentLines, dedent, hexColor, camelToSnake,
 };
 
 /** Apply replacements to the code parts of an expression, leaving string literals untouched. */

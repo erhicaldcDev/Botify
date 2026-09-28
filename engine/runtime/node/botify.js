@@ -23,6 +23,7 @@ function db() {
 }
 
 const EPHEMERAL = MessageFlags ? MessageFlags.Ephemeral : 64;
+const COMPONENTS_V2 = (MessageFlags && MessageFlags.IsComponentsV2) || 32768;
 
 class Context {
   constructor(opts) {
@@ -202,6 +203,12 @@ function _payload(p) {
   if (p == null) return { content: "​" };
   if (typeof p === "string") return { content: p.slice(0, 2000) || "​" };
   const out = { ...p };
+  if (out.flags && (out.flags & COMPONENTS_V2) === COMPONENTS_V2) {
+    // Components V2 messages can't have content or embeds.
+    delete out.content;
+    delete out.embeds;
+    return out;
+  }
   if (typeof out.content === "string") out.content = out.content.slice(0, 2000);
   if (!out.content) delete out.content;
   if (out.embed) { out.embeds = [out.embed]; delete out.embed; }
@@ -216,7 +223,7 @@ async function reply(ctx, p, opts = {}) {
   const it = ctx.interaction;
   let msg = null;
   if (it && it.isRepliable && it.isRepliable()) {
-    if (opts.ephemeral) payload.flags = EPHEMERAL;
+    if (opts.ephemeral) payload.flags = (payload.flags || 0) | EPHEMERAL;
     if (it.replied || it.deferred) {
       msg = await it.followUp(payload);
     } else {
@@ -453,6 +460,94 @@ async function askModal(ctx, opts, vars = {}) {
   return values;
 }
 
+// ------------------------------------------------------------ Components V2
+function _emoji(e) {
+  if (!e) return undefined;
+  const m = String(e).match(/^<(a?):(\w+):(\d+)>$/);
+  return m ? { id: m[3], name: m[2], animated: !!m[1] } : { name: String(e) };
+}
+
+function _v2Button(ctx, b, vars, disabled) {
+  const style = _style(b.style);
+  const out = { type: 2, style };
+  const label = text(ctx, b.label || "", vars).slice(0, 80);
+  if (label) out.label = label;
+  if (b.emoji) out.emoji = _emoji(b.emoji);
+  if (style === ButtonStyle.Link) out.url = isUrl(text(ctx, b.url, vars)) ? text(ctx, b.url, vars) : "https://discord.com";
+  else {
+    out.custom_id = String(b.id || "btn").slice(0, 100);
+    if (disabled) out.disabled = true;
+  }
+  if (!out.label && !out.emoji) out.label = "Button";
+  return out;
+}
+
+function _v2Node(ctx, n, vars, disabled) {
+  const t = (s) => text(ctx, s, vars);
+  switch (n && n.type) {
+    case "text": return { type: 10, content: clip(t(n.content) || "\u200b", 4000) };
+    case "section": {
+      const content = { type: 10, content: clip(t(n.content) || "\u200b", 4000) };
+      const acc = n.accessory || {};
+      let accessory = null;
+      if (acc.kind === "button") accessory = _v2Button(ctx, acc, vars, disabled);
+      else if (isUrl(t(acc.url))) {
+        accessory = { type: 11, media: { url: t(acc.url) }, spoiler: !!acc.spoiler };
+        if (acc.description) accessory.description = t(acc.description).slice(0, 1024);
+      }
+      // A section needs an accessory - fall back to a plain text display.
+      return accessory ? { type: 9, components: [content], accessory } : content;
+    }
+    case "separator": return { type: 14, divider: n.divider !== false, spacing: n.spacing === "large" ? 2 : 1 };
+    case "gallery": {
+      const items = (n.items || []).map((it) => ({ url: t(it.url), description: it.description ? t(it.description).slice(0, 1024) : undefined, spoiler: !!it.spoiler }))
+        .filter((it) => isUrl(it.url)).slice(0, 10)
+        .map((it) => ({ media: { url: it.url }, description: it.description, spoiler: it.spoiler }));
+      return items.length ? { type: 12, items } : null;
+    }
+    case "buttons": {
+      const buttons = (n.buttons || []).slice(0, 5).map((b) => _v2Button(ctx, b, vars, disabled));
+      return buttons.length ? { type: 1, components: buttons } : null;
+    }
+    case "container": {
+      const components = (n.children || []).filter((c) => c.type !== "container").map((c) => _v2Node(ctx, c, vars, disabled)).filter(Boolean);
+      if (!components.length) return null;
+      const out = { type: 17, components, spoiler: !!n.spoiler };
+      const c = String(n.accentColor || "").replace("#", "");
+      if (/^[0-9a-f]{6}$/i.test(c)) out.accent_color = parseInt(c, 16);
+      return out;
+    }
+    default: return null;
+  }
+}
+
+/** Build Components V2 JSON (wrapped so discord.js passes it through as-is). */
+function layoutComponents(ctx, comps, vars = {}, disabled = false) {
+  return (comps || []).map((n) => _v2Node(ctx, n, vars, disabled)).filter(Boolean).map((json) => ({ toJSON: () => json }));
+}
+
+/** Send a Components V2 layout. With opts.wait returns the clicked button id ("timeout" if none). */
+async function sendLayout(ctx, channelValue, comps, opts = {}, vars = {}) {
+  const payload = { components: layoutComponents(ctx, comps, vars), flags: COMPONENTS_V2 };
+  if (!payload.components.length) payload.components = layoutComponents(ctx, [{ type: "text", content: "\u200b" }], vars);
+  let msg = null;
+  if (_stringify(channelValue).trim()) {
+    const ch = await resolveChannel(ctx, channelValue);
+    if (!ch || !ch.send) { console.warn(`[Botify] Channel not found: ${channelValue}`); return "error"; }
+    msg = await ch.send(payload);
+    ctx.lastMessage = msg;
+  } else {
+    msg = await reply(ctx, payload, { ephemeral: opts.ephemeral });
+  }
+  if (!opts.wait) return "sent";
+  const clicked = await _awaitComponent(ctx, msg, opts.timeout, opts.onlyAuthor !== false);
+  msg?.edit({ components: layoutComponents(ctx, comps, vars, true), flags: COMPONENTS_V2 }).catch(() => {});
+  if (!clicked) return "timeout";
+  ctx.interaction = clicked;
+  _autoAck(clicked);
+  return clicked.customId;
+}
+
 // ---------------------------------------------------------------- moderation
 async function kick(ctx, target, reason) {
   const m = await resolveMember(ctx, target);
@@ -654,7 +749,7 @@ async function helpMenu(ctx, settings, commands) {
 
 module.exports = {
   context, prefixArgs, text, compare, toNumber, parseValue, embed, reply, send, dm, editReply, defer, deleteMessage, react,
-  askButtons, askSelect, askModal, buttonRows, kick, ban, timeout, role, nickname, purge, hasPermission, hasRole,
+  askButtons, askSelect, askModal, buttonRows, layoutComponents, sendLayout, kick, ban, timeout, role, nickname, purge, hasPermission, hasRole,
   cooldown, userInfo, http, sqlAll, sqlRun, kvGet, kvSet, randomInt, pick, setStatus, sleep, helpMenu,
   resolveUser, resolveMember, resolveChannel, db,
 };

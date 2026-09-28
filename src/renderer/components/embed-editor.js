@@ -43,7 +43,7 @@
             <div class="color-row">
               <input type="color" class="color-swatch" data-el="picker" value="${/^#[0-9a-f]{6}$/i.test(embed.color) ? embed.color : "#5865f2"}" />
               <input class="input input-sm color-hex" data-el="hex" value="${escapeHtml(embed.color || "#5865f2")}" />
-              <div class="color-presets">${PRESETS.map((c) => `<button type="button" class="color-dot" data-color="${c}" style="background:${c}" title="${c}"></button>`).join("")}</div>
+              <div class="color-presets">${PRESETS.map((c) => `<button type="button" class="color-dot" data-color="${c}" style="background:${c}" title="${c}"></button>`).join("")}<button type="button" class="color-dot color-random" data-el="random" title="Random color">🎲</button></div>
             </div>
           </div>
           <div class="ed-section">
@@ -96,12 +96,13 @@
           </div>
         </div>
         <div class="embed-designer-preview">
-          <div class="preview-label">${icon("eye", 14)} Live preview</div>
+          <div class="preview-label">${icon("eye", 14)} Live preview ${window.previewThemeSwitch ? previewThemeSwitch() : ""}</div>
           <div class="discord-surface" data-el="preview"></div>
           <div class="ed-stats" data-el="stats"></div>
           <div class="ed-json-tools">
             <button type="button" class="btn btn-ghost btn-sm" data-act="copy-json">${icon("copy", 14)} Copy JSON</button>
             <button type="button" class="btn btn-ghost btn-sm" data-act="import-json">${icon("upload", 14)} Import JSON</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-act="reset">${icon("restart", 14)} Reset</button>
           </div>
         </div>
       </div>`;
@@ -154,7 +155,12 @@
     };
     picker.oninput = () => setColor(picker.value);
     hex.oninput = () => { if (/^#[0-9a-f]{6}$/i.test(hex.value)) setColor(hex.value); };
-    container.querySelectorAll(".color-dot").forEach((d) => { d.onclick = () => setColor(d.dataset.color); });
+    container.querySelectorAll(".color-dot[data-color]").forEach((d) => { d.onclick = () => setColor(d.dataset.color); });
+    $('[data-el="random"]').onclick = () => {
+      const h = Math.floor(Math.random() * 360);
+      const f = (n) => { const k = (n + h / 30) % 12; const c = 0.6 - 0.35 * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(c * 255).toString(16).padStart(2, "0"); };
+      setColor(`#${f(0)}${f(8)}${f(4)}`);
+    };
 
     const tsToggle = $('[data-el="timestamp"]');
     tsToggle.onclick = () => { tsToggle.classList.toggle("active"); embed.timestamp = tsToggle.classList.contains("active"); changed(); };
@@ -212,6 +218,13 @@
       changed();
     };
 
+    $('[data-act="reset"]').onclick = async () => {
+      if (!(await confirmDialog({ title: "Reset embed?", message: "All fields will be cleared.", confirmText: "Reset", danger: true }))) return;
+      Object.keys(embed).forEach((k) => delete embed[k]);
+      Object.assign(embed, blank());
+      mount(container, embed, opts);
+      opts.onChange && opts.onChange(embed);
+    };
     $('[data-act="copy-json"]').onclick = async () => {
       try {
         await navigator.clipboard.writeText(JSON.stringify(embed, null, 2));

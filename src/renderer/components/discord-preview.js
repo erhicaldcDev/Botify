@@ -200,6 +200,41 @@
       </div>` : ""}`;
   }
 
+  // ------------------------------------------------------------ Components V2
+  function galleryHtml(items) {
+    const list = (items || []).filter((i) => i && String(i.url || "").trim()).slice(0, 10);
+    if (!list.length) return '<div class="dc-v2-gallery dc-v2-gallery-empty">No images yet</div>';
+    const n = list.length;
+    const layoutClass = n === 1 ? "g1" : n === 2 ? "g2" : n === 3 ? "g3" : n === 4 ? "g4" : "gn";
+    return `<div class="dc-v2-gallery ${layoutClass}">${list.map((it) => `
+      <div class="dc-v2-gallery-item${it.spoiler ? " spoiler" : ""}">${img(it.url === "https://" ? "" : it.url, "dc-v2-gallery-img") || '<div class="dc-img-broken dc-v2-gallery-img"></div>'}${it.spoiler ? '<span class="dc-v2-spoiler-tag">SPOILER</span>' : ""}</div>`).join("")}</div>`;
+  }
+
+  function accessoryHtml(acc) {
+    if (!acc) return "";
+    if (acc.kind === "button") return buttons([acc]).replace("dc-action-row", "dc-v2-accessory-btn");
+    return `<div class="dc-v2-thumb${acc.spoiler ? " spoiler" : ""}">${img(acc.url, "dc-v2-thumb-img") || '<div class="dc-img-broken dc-v2-thumb-img"></div>'}</div>`;
+  }
+
+  function v2Node(n) {
+    switch (n && n.type) {
+      case "text": return `<div class="dc-v2-text">${markdown(n.content || "")}</div>`;
+      case "section": return `<div class="dc-v2-section"><div class="dc-v2-text">${markdown(n.content || "")}</div>${accessoryHtml(n.accessory)}</div>`;
+      case "separator": return `<div class="dc-v2-sep ${n.spacing === "large" ? "large" : ""} ${n.divider === false ? "nodivider" : ""}"></div>`;
+      case "gallery": return galleryHtml(n.items);
+      case "buttons": return buttons(n.buttons || []);
+      case "container": return `<div class="dc-v2-container${n.spoiler ? " spoiler" : ""}" style="--accent:${/^#[0-9a-f]{6}$/i.test(n.accentColor || "") ? n.accentColor : "transparent"}">${(n.children || []).map(v2Node).join("")}${n.spoiler ? '<div class="dc-v2-spoiler-cover">SPOILER</div>' : ""}</div>`;
+      default: return "";
+    }
+  }
+
+  /** Render a Components V2 layout ({ components: [...] }). */
+  function layout(spec) {
+    const comps = (spec && spec.components) || [];
+    if (!comps.length) return '<div class="dc-muted">Empty layout</div>';
+    return `<div class="dc-v2">${comps.map(v2Node).join("")}</div>`;
+  }
+
   function message(m = {}) {
     const botName = m.botName || (window.AppState && AppState.currentProject && AppState.currentProject.name) || "Botify";
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -210,7 +245,8 @@
         <img class="dc-avatar" src="${m.botAvatar || SAMPLE_IMAGES["{bot.avatar}"]}" alt="" />
         <div class="dc-message-body">
           <div class="dc-header"><span class="dc-username">${escapeHtml(botName)}</span><span class="dc-bot-tag">APP</span><span class="dc-time">Today at ${time}</span></div>
-          ${m.content ? `<div class="dc-content">${markdown(m.content)}</div>` : ""}
+          ${m.layout ? layout(m.layout) : ""}
+          ${m.content && !m.layout ? `<div class="dc-content">${markdown(m.content)}</div>` : ""}
           ${(m.embeds || []).map(embed).join("")}
           ${m.buttons ? buttons(m.buttons) : ""}
           ${m.select ? select(m.select) : ""}
@@ -272,10 +308,16 @@
         return message({ content: a.content, select: { placeholder: a.placeholder, options: a.options }, command });
       case "show_modal":
         return modal({ title: a.title, inputs: a.inputs });
+      case "send_layout":
+        return message({ layout: a.layout || { components: [] }, ephemeral: a.ephemeral, command });
+      case "send_saved_layout": {
+        const saved = project && (project.layouts || []).find((l) => l.id === a.layoutRef);
+        return saved ? message({ layout: saved, ephemeral: a.ephemeral, command }) : '<div class="dc-muted preview-empty">Select a saved layout to see a preview.</div>';
+      }
       default:
         return null;
     }
   }
 
-  window.DiscordPreview = { markdown, embed, message, modal, buttons, select, forAction, avatarSvg };
+  window.DiscordPreview = { markdown, embed, message, modal, buttons, select, forAction, avatarSvg, layout };
 })();

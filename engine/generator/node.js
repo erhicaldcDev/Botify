@@ -149,6 +149,17 @@ class NodeGenerator {
                 const opts = `{ title: ${this.tpl(a.title || "Form")}, inputs: ${this.obj(a.inputs || [])}, timeout: ${Number(a.timeout) || 300} }`;
                 return `${i}${target} = await B.askModal(ctx, ${opts}, __v());\n${i}if (!${target}) return; // form closed / timed out`;
             }
+            case "send_layout":
+            case "send_saved_layout": {
+                const comps = C.layoutFor(this.project, a);
+                if (!comps) {
+                    this.warnings.push(`${env.label}: ${a.type === "send_layout" ? "layout is empty" : `saved layout "${a.layoutRef || ""}" not found`} - block skipped.`);
+                    return `${i}// [Botify] Send Layout: no layout`;
+                }
+                const opts = `{ ephemeral: ${!!a.ephemeral}, wait: ${!!a.wait}, timeout: ${Number(a.timeout) || 60}, onlyAuthor: ${a.onlyAuthor !== false} }`;
+                const call = `await B.sendLayout(ctx, ${this.text(a.channelId)}, ${this.obj(comps)}, ${opts}, __v())`;
+                return a.wait ? `${i}${C.identifier(a.saveTo || "clicked")} = ${call};` : `${i}${call};`;
+            }
             case "defer_reply":
                 return `${i}await B.defer(ctx, ${!!a.ephemeral});`;
 
@@ -530,7 +541,7 @@ client.login(process.env.DISCORD_TOKEN).catch((err) => {
         fs.mkdirSync(commandsDir, { recursive: true });
         fs.mkdirSync(eventsDir, { recursive: true });
 
-        const deps = { "discord.js": "^14.16.3", "better-sqlite3": "^11.7.0", dotenv: "^16.4.7" };
+        const deps = { "discord.js": "^14.19.3", "better-sqlite3": "^11.7.0", dotenv: "^16.4.7" };
         pluginLogics.forEach((l) => Object.assign(deps, l.dependencies || {}));
         const pkg = {
             name: C.commandName(this.project.name) || "botify-bot",
