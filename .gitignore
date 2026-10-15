@@ -29,3 +29,4 @@ out/
 *.sw?
 __pycache__/
 *.pyc
+package-lock.json
